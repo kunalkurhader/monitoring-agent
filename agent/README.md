@@ -17,7 +17,7 @@ This project is designed to be **simple, transparent, and extensible**, without 
   - Run every _N_ seconds (default: 5)
 - 🗄 **Database-backed storage**
   - MySQL / MariaDB
-  - Schema managed via Liquibase migrations
+  - Schema managed by the Laravel application
 - 🔐 **Secure local configuration**
   - Credentials stored outside the repository
 - ⚙️ **CLI-based setup**
@@ -54,7 +54,6 @@ It’s suitable for:
 - **Maven**
 - **OSHI** (system & process metrics)
 - **MySQL / MariaDB**
-- **Liquibase**
 - **Apache Commons CLI**
 
 ### Prerequisites
@@ -75,7 +74,6 @@ mvn clean package
 Run setup **only once** on a machine.  
 This will:
 - validate database credentials
-- create database tables using Liquibase
 - save configuration locally
 - configure polling interval
 - configure process filters
