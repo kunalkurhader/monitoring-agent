@@ -8,30 +8,21 @@ public class SetupParser {
 
         Options options = new Options();
 
-        options.addOption(Option.builder("host")
+        options.addOption(Option.builder("url")
+                .longOpt("api-url")
                 .hasArg()
                 .required()
                 .build());
 
-        options.addOption(Option.builder("port")
-                .hasArg()
-                .build());
-
-        options.addOption(Option.builder("db")
+        options.addOption(Option.builder("token")
+                .longOpt("api-token")
                 .hasArg()
                 .required()
                 .build());
 
-        options.addOption(Option.builder("u")
-                .longOpt("user")
+        options.addOption(Option.builder("name")
+                .longOpt("hostname")
                 .hasArg()
-                .required()
-                .build());
-
-        options.addOption(Option.builder("p")
-                .longOpt("password")
-                .hasArg()
-                .required()
                 .build());
 
         options.addOption(Option.builder("interval")

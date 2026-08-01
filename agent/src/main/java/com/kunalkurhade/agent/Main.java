@@ -20,15 +20,13 @@ public class Main {
 
             CommandLine cmd = SetupParser.parse(setupArgs);
 
-            String host = cmd.getOptionValue("host");
-            int port = Integer.parseInt(cmd.getOptionValue("port", "3306"));
-            String db = cmd.getOptionValue("db");
-            String user = cmd.getOptionValue("u");
-            String password = cmd.getOptionValue("p");
+            String apiUrl = cmd.getOptionValue("url");
+            String apiToken = cmd.getOptionValue("token");
+            String hostname = cmd.getOptionValue("name");
             int interval = Integer.parseInt(cmd.getOptionValue("interval", "5"));
             String filterRaw = cmd.getOptionValue("f", "");
 
-            SetupRunner.run(host, port, db, user, password, interval, filterRaw);
+            SetupRunner.run(apiUrl, apiToken, hostname, interval, filterRaw);
             return;
         }
 
@@ -50,7 +48,7 @@ public class Main {
         System.out.println("""
             Usage:
               Setup (one time):
-                java -jar agent.jar setup -host localhost -port 3306 -db matrix -u root -p password -interval 5 -f java
+                java -jar agent.jar setup -url https://pulsewatch.example.com -token TOKEN -interval 5 -f java
 
               Start agent:
                 java -jar agent.jar

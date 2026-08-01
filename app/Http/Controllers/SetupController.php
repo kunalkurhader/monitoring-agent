@@ -6,8 +6,10 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 use Throwable;
@@ -131,7 +133,7 @@ class SetupController extends Controller
                 '--force' => true,
             ]);
 
-            User::on('setup')->updateOrCreate(
+            $user = User::on('setup')->updateOrCreate(
                 ['email' => $validated['email']],
                 [
                     'name' => 'Administrator',
@@ -141,9 +143,11 @@ class SetupController extends Controller
                 ],
             );
 
-            $this->writeEnvironment($connection);
+            $agentToken = Str::random(64);
+            $this->writeEnvironment($connection, $agentToken);
             File::put(storage_path('app/installed'), now()->toIso8601String());
             Artisan::call('config:clear');
+            Auth::login($user);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -154,7 +158,9 @@ class SetupController extends Controller
 
         $request->session()->forget('setup');
 
-        return redirect()->route('dashboard')->with('status', 'Installation completed successfully.');
+        return redirect()->route('dashboard')
+            ->with('status', 'Installation completed successfully.')
+            ->with('agent_token', $agentToken);
     }
 
     private function connect(array $connection): void
@@ -170,7 +176,7 @@ class SetupController extends Controller
         DB::connection('setup')->getPdo();
     }
 
-    private function writeEnvironment(array $connection): void
+    private function writeEnvironment(array $connection, string $agentToken): void
     {
         $values = [
             'DB_CONNECTION' => $connection['driver'],
@@ -181,6 +187,7 @@ class SetupController extends Controller
             'DB_USERNAME' => $connection['username'],
             'DB_PASSWORD' => $connection['password'] ?? '',
             'SESSION_DRIVER' => 'file',
+            'AGENT_API_TOKEN' => $agentToken,
         ];
 
         $contents = File::get(base_path('.env'));

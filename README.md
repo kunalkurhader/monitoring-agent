@@ -2,7 +2,8 @@
 
 Pulsewatch is a self-hosted infrastructure monitoring application. It combines
 a Laravel web application with a lightweight Java agent that collects system
-and process metrics and writes them directly to your database.
+and process metrics and sends them to the application through an authenticated
+HTTP API.
 
 ## Current features
 
@@ -14,6 +15,8 @@ and process metrics and writes them directly to your database.
 - Light and dark setup themes
 - Responsive Tailwind CSS interface
 - Java agent for system and process monitoring
+- Token-authenticated agent metrics API
+- Stable agent UUID and hostname registration
 - Laravel-managed database schema
 - Protection against running the setup wizard again after installation
 
@@ -146,14 +149,43 @@ Configure it after completing the Laravel web setup:
 
 ```bash
 java -jar agent/target/agent-1.0.0.jar setup \
-  -host database.example.com \
-  -port 3306 \
-  -db monitoring \
-  -u monitoring_agent \
-  -p 'database-password' \
+  -url https://pulsewatch.example.com \
+  -token 'agent-api-token' \
+  -name web-01 \
   -interval 20 \
   -f java,php
 ```
+
+The API token is generated during the web setup and shown once on the
+completion screen. The agent validates the API and token before saving its
+local configuration. Database credentials are never stored on monitored hosts.
+
+### Agent API
+
+- `GET /api/v1/agent/ping` validates connectivity and authentication.
+- `POST /api/v1/agent/metrics` accepts one system sample and up to 500 process
+  samples in a single request.
+
+Both endpoints require `Authorization: Bearer <agent-api-token>`.
+
+## Live monitoring dashboard
+
+After installation, sign in at `/login` with the administrator email and
+password created by the setup wizard. The authenticated `/dashboard` shows the
+selected agent's CPU and RAM charts, current values, top processes, disk
+occupancy, hostname, UUID, and connectivity status.
+
+The browser requests `/dashboard/data` with AJAX every five seconds, so charts
+update without a full page reload. Users can select a 1, 6, or 24 hour range.
+The endpoint aggregates each range to at most 360 chart points, keeping payloads
+bounded while raw high-frequency samples remain stored in the database.
+
+CPU, RAM, process, and disk metrics use the agent's configured interval. Disk
+telemetry is sent independently in the same scheduler cycle, so a disk request
+failure does not prevent system and process metrics from being delivered.
+
+Dashboard routes use Laravel session authentication. Agent ingestion routes
+continue to use the separate bearer token in `AGENT_API_TOKEN`.
 
 Run it:
 

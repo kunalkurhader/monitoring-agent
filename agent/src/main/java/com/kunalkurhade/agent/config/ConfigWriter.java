@@ -1,6 +1,5 @@
 package com.kunalkurhade.agent.config;
 
-import com.kunalkurhade.agent.config.AgentPaths;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Properties;
@@ -8,11 +7,10 @@ import java.util.Properties;
 public class ConfigWriter {
 
     public static void save(
-            String host,
-            int port,
-            String db,
-            String user,
-            String password,
+            String apiUrl,
+            String apiToken,
+            String agentId,
+            String hostname,
             int interval,
             String filterRaw
     ) throws Exception {
@@ -21,19 +19,18 @@ public class ConfigWriter {
         if (!dir.exists()) dir.mkdirs();
 
         Properties props = new Properties();
-        props.setProperty("db.host", host);
-        props.setProperty("db.port", String.valueOf(port));
-        props.setProperty("db.name", db);
-        props.setProperty("db.user", user);
-        props.setProperty("db.password", password);
+        props.setProperty("api.url", apiUrl);
+        props.setProperty("api.token", apiToken);
+        props.setProperty("agent.id", agentId);
+        props.setProperty("agent.hostname", hostname);
         props.setProperty("interval.seconds", String.valueOf(interval));
         props.setProperty("process.filter", filterRaw);
 
-        try (FileOutputStream out = new FileOutputStream(AgentPaths.BASE_DIR)) {
+        try (FileOutputStream out = new FileOutputStream(AgentPaths.CONFIG_FILE)) {
             props.store(out, "Agent Configuration");
         }
 
-        File f = new File(AgentPaths.BASE_DIR);
+        File f = new File(AgentPaths.CONFIG_FILE);
         f.setReadable(false, false);
         f.setWritable(false, false);
         f.setReadable(true, true);

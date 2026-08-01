@@ -1,3 +1,5 @@
+import './dashboard';
+
 const syncThemeControls = () => {
     const dark = document.documentElement.classList.contains('dark');
 

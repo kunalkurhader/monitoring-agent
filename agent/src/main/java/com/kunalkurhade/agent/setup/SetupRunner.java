@@ -1,30 +1,36 @@
 package com.kunalkurhade.agent.setup;
 
+import com.kunalkurhade.agent.api.ApiClient;
 import com.kunalkurhade.agent.config.ConfigWriter;
-import com.kunalkurhade.agent.config.DbConfig;
-import com.kunalkurhade.agent.db.DatabaseValidator;
 import com.kunalkurhade.agent.scheduler.MonitorScheduler;
 import com.kunalkurhade.agent.config.AgentConfig;
+import java.net.InetAddress;
+import java.util.UUID;
 
 public class SetupRunner {
 
     public static void run(
-            String host,
-            int port,
-            String db,
-            String user,
-            String password,
+            String apiUrl,
+            String apiToken,
+            String hostname,
             int interval,
             String filterRaw
     ) {
         try {
-            DbConfig cfg = new DbConfig(host, port, db, user, password);
+            String resolvedHostname = hostname == null || hostname.isBlank()
+                    ? InetAddress.getLocalHost().getHostName()
+                    : hostname;
+            String agentId = UUID.randomUUID().toString();
+            AgentConfig config = new AgentConfig(
+                    apiUrl, apiToken, agentId, resolvedHostname, interval
+            );
 
-            DatabaseValidator.validate(cfg);
+            new ApiClient(config).ping();
+            ConfigWriter.save(
+                    apiUrl, apiToken, agentId, resolvedHostname, interval, filterRaw
+            );
 
-            ConfigWriter.save(host, port, db, user, password, interval, filterRaw);
-
-            MonitorScheduler.start(new AgentConfig(interval));
+            MonitorScheduler.start(config);
 
             System.out.println("✅ Setup completed successfully");
 
