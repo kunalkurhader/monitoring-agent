@@ -6,6 +6,7 @@ use App\Models\Agent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -22,7 +23,7 @@ class DashboardController extends Controller
     {
         $validated = $request->validate([
             'agent_id' => ['required', 'uuid', 'exists:agents,id'],
-            'range' => ['nullable', 'integer', 'in:1,6,24'],
+            'range' => ['nullable', 'integer', 'in:1,6,24,72'],
         ]);
 
         $hours = (int) ($validated['range'] ?? 1);
@@ -54,10 +55,122 @@ class DashboardController extends Controller
             'series' => $this->aggregate($systemRows, 360),
             'current' => $this->current($systemRows, $processCount),
             'processes' => $processes,
+            'process_heatmap' => $this->processHeatmap($agent->id, $hours),
             'disks' => $disks,
             'disk_synced_at' => $latestDiskAt,
             'server_time' => now()->toIso8601String(),
         ]);
+    }
+
+    public function processes(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid', 'exists:agents,id'],
+            'at' => ['required', 'date'],
+        ]);
+
+        $sampledAt = DB::table('process_stats')
+            ->where('agent_id', $validated['agent_id'])
+            ->where('created_at', '<=', $validated['at'])
+            ->max('created_at');
+
+        $processes = $sampledAt
+            ? DB::table('process_stats')
+                ->where('agent_id', $validated['agent_id'])
+                ->where('created_at', $sampledAt)
+                ->orderByDesc('cpu_usage')
+                ->limit(500)
+                ->get(['pid', 'process_name', 'command', 'user_name', 'cpu_usage', 'memory_bytes', 'state', 'start_time'])
+            : collect();
+
+        return response()->json([
+            'sampled_at' => $sampledAt,
+            'processes' => $processes,
+        ]);
+    }
+
+    public function storage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid', 'exists:agents,id'],
+            'at' => ['required', 'date'],
+        ]);
+
+        $sampledAt = DB::table('disk_stats')
+            ->where('agent_id', $validated['agent_id'])
+            ->where('created_at', '<=', $validated['at'])
+            ->max('created_at');
+
+        $disks = $sampledAt
+            ? DB::table('disk_stats')
+                ->where('agent_id', $validated['agent_id'])
+                ->where('created_at', $sampledAt)
+                ->orderBy('mount_point')
+                ->get(['device', 'mount_point', 'file_system_type', 'total_bytes', 'free_bytes', 'used_bytes'])
+            : collect();
+
+        return response()->json(['sampled_at' => $sampledAt, 'disks' => $disks]);
+    }
+
+    private function processHeatmap(string $agentId, int $hours): array
+    {
+        return Cache::remember(
+            "dashboard:process-heatmap:{$agentId}:{$hours}",
+            now()->addSeconds(30),
+            fn (): array => $this->buildProcessHeatmap($agentId, $hours),
+        );
+    }
+
+    private function buildProcessHeatmap(string $agentId, int $hours): array
+    {
+        $from = now()->subHours($hours);
+        $names = DB::table('process_stats')
+            ->where('agent_id', $agentId)
+            ->where('created_at', '>=', $from)
+            ->whereNotNull('process_name')
+            ->select('process_name')
+            ->groupBy('process_name')
+            ->orderByRaw('AVG(cpu_usage) DESC')
+            ->limit(6)
+            ->pluck('process_name');
+
+        if ($names->isEmpty()) {
+            return ['labels' => [], 'rows' => []];
+        }
+
+        $bucketCount = 24;
+        $start = $from->getTimestamp();
+        $duration = max(1, now()->getTimestamp() - $start);
+        $buckets = [];
+
+        DB::table('process_stats')
+            ->where('agent_id', $agentId)
+            ->where('created_at', '>=', $from)
+            ->whereIn('process_name', $names)
+            ->orderBy('created_at')
+            ->get(['process_name', 'cpu_usage', 'created_at'])
+            ->each(function ($row) use (&$buckets, $start, $duration, $bucketCount): void {
+                $timestamp = strtotime((string) $row->created_at);
+                $index = min($bucketCount - 1, max(0, (int) floor((($timestamp - $start) / $duration) * $bucketCount)));
+                $buckets[$row->process_name][$index][] = (float) $row->cpu_usage;
+            });
+
+        $labels = [];
+        for ($index = 0; $index < $bucketCount; $index++) {
+            $labels[] = $from->copy()->addSeconds((int) (($duration / $bucketCount) * $index))->toIso8601String();
+        }
+
+        return [
+            'labels' => $labels,
+            'rows' => $names->map(fn (string $name): array => [
+                'name' => $name,
+                'values' => array_map(function (int $index) use ($buckets, $name): float {
+                    $values = $buckets[$name][$index] ?? [];
+
+                    return $values === [] ? 0 : round(array_sum($values) / count($values), 2);
+                }, range(0, $bucketCount - 1)),
+            ])->values()->all(),
+        ];
     }
 
     private function aggregate(Collection $rows, int $maxPoints): array

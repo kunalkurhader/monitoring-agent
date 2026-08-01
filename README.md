@@ -12,11 +12,15 @@ HTTP API.
 - Support for local databases and remote services such as Amazon RDS
 - Connection validation before installation
 - Secure administrator account creation
-- Light and dark setup themes
+- Persistent light and dark themes across setup and authenticated pages
 - Responsive Tailwind CSS interface
 - Java agent for system and process monitoring
 - Token-authenticated agent metrics API
 - Stable agent UUID and hostname registration
+- AJAX dashboard with CPU, RAM, process, and storage history
+- Historical process snapshots and process CPU heatmap
+- Historical storage occupancy with status progress bars
+- Team invitations, Member/Admin roles, and account profiles
 - Laravel-managed database schema
 - Protection against running the setup wizard again after installation
 
@@ -123,8 +127,11 @@ dependencies.
 Laravel migrations manage both application and monitoring tables:
 
 - `users`
+- `team_invitations`
+- `agents`
 - `system_stats`
 - `process_stats`
+- `disk_stats`
 - Laravel session, cache, and queue tables
 
 The Java agent no longer executes Liquibase or SQL migration files. Run the web
@@ -138,6 +145,7 @@ The agent collects:
 - total and free memory
 - filtered process CPU and memory usage
 - process name, command, user, state, PID, and start time
+- mounted filesystem device, mount point, type, total, free, and used capacity
 
 Build the agent:
 
@@ -165,6 +173,7 @@ local configuration. Database credentials are never stored on monitored hosts.
 - `GET /api/v1/agent/ping` validates connectivity and authentication.
 - `POST /api/v1/agent/metrics` accepts one system sample and up to 500 process
   samples in a single request.
+- `POST /api/v1/agent/disks` accepts the current mounted-filesystem snapshot.
 
 Both endpoints require `Authorization: Bearer <agent-api-token>`.
 
@@ -175,8 +184,23 @@ password created by the setup wizard. The authenticated `/dashboard` shows the
 selected agent's CPU and RAM charts, current values, top processes, disk
 occupancy, hostname, UUID, and connectivity status.
 
+The Overview, Processes, and Storage tabs organize current and historical
+telemetry. The Process CPU heatmap divides the chosen period into 24 buckets
+and shows the six processes with the highest average CPU; darker cells indicate
+higher utilization. Heatmap results are cached briefly to keep five-second
+dashboard refreshes efficient.
+
+The Processes tab includes a time slider for loading the complete process
+snapshot at a past sample, including PID, command, user, CPU, memory, state, and
+start time. The Storage tab shows each mounted volume's device, filesystem,
+used, free, and total capacity. Its historical slider loads the nearest storage
+snapshot and redraws occupancy progress bars for that point in time.
+Storage bars are green below 75%, amber from 75% through 89%, and red at 90% or
+higher. Composite `agent_id` and `created_at` indexes support historical lookup
+across high-frequency tables.
+
 The browser requests `/dashboard/data` with AJAX every five seconds, so charts
-update without a full page reload. Users can select a 1, 6, or 24 hour range.
+update without a full page reload. Users can select a 1, 6, 24, or 72 hour range.
 The endpoint aggregates each range to at most 360 chart points, keeping payloads
 bounded while raw high-frequency samples remain stored in the database.
 
@@ -186,6 +210,43 @@ failure does not prevent system and process metrics from being delivered.
 
 Dashboard routes use Laravel session authentication. Agent ingestion routes
 continue to use the separate bearer token in `AGENT_API_TOKEN`.
+
+Light mode is the default. The theme control saves the user's preference in
+browser storage and applies it before the page renders. The Account menu links
+to Profile and Team and provides Sign out. Profile allows a user to update their
+display name and optionally change their password while showing their email and
+current role.
+
+## Team invitations
+
+Every authenticated user can open `/team` to see accepted team members and
+pending or expired invitations. Administrators can invite an email address as
+either a Member or Administrator and can change accepted users' roles. The last
+administrator cannot be demoted.
+
+Invitation emails contain a single-use, seven-day link. Only a SHA-256 hash of
+the token is stored. A valid recipient sets their name and password, then signs
+in through `/login`. Configure `MAIL_MAILER` and the related `MAIL_*` variables
+for production delivery; the local default writes invitation emails and links
+to `storage/logs/laravel.log`.
+
+For a local three-agent demonstration with three days of 10-second telemetry:
+
+```bash
+php artisan migrate
+php artisan db:seed --class=DashboardDemoSeeder
+```
+
+The demo seeder is repeatable: it replaces telemetry for its three fixed demo
+agent UUIDs and creates an administrator with these local credentials:
+
+```text
+Email: demo@pulsewatch.local
+Password: PulsewatchDemo123!
+```
+
+The generated dataset contains CPU/RAM cycles, short CPU spikes, process
+snapshots, and two mounted-volume snapshots per agent at a 10-second cadence.
 
 Run it:
 

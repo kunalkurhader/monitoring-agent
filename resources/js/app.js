@@ -18,6 +18,7 @@ document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
         document.documentElement.classList.toggle('scheme-light', !dark);
         localStorage.setItem('pulsewatch-theme', dark ? 'dark' : 'light');
         syncThemeControls();
+        window.dispatchEvent(new CustomEvent('pulsewatch:theme-changed'));
     });
 });
 
