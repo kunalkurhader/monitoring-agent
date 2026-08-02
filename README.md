@@ -517,6 +517,28 @@ php artisan schedule:work
 
 Then open `http://127.0.0.1:8000`.
 
+## Scheduled maintenance
+
+Laravel's scheduler drives background maintenance. The Linux installer creates
+`/etc/cron.d/monitoring-agent-scheduler`; local development requires
+`php artisan schedule:work` in a separate terminal.
+
+| Command | Frequency | Purpose |
+| --- | --- | --- |
+| `monitors:check` | Every minute | Check website HTTP availability and SSL certificates, then send deduplicated alerts. |
+| `agents:cleanup-builds` | Every minute | Remove expired temporary JAR records and private files. |
+| `data:prune` | Hourly | Delete historical monitoring records outside the configured retention window. |
+
+Inspect the effective schedule with:
+
+```bash
+php artisan schedule:list
+```
+
+The scheduler must run continuously in production. Without it, server and
+browser ingestion still accepts incoming data, but uptime checks, temporary JAR
+cleanup, and retention pruning will not run automatically.
+
 ## Testing
 
 Run the PHP test suite:
