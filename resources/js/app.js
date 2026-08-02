@@ -2,6 +2,7 @@ import './dashboard';
 import './agent-installer';
 import './fleet-dashboard';
 import './settings';
+import './cloud-dashboard';
 
 const syncThemeControls = () => {
     const dark = document.documentElement.classList.contains('dark');

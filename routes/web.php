@@ -5,6 +5,7 @@ use App\Http\Controllers\AgentInstallController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandingLogoController;
 use App\Http\Controllers\BrowserMonitoringController;
+use App\Http\Controllers\CloudDashboardController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FleetDashboardController;
 use App\Http\Controllers\InvitationController;
@@ -50,6 +51,12 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/monitors/storage', [DashboardController::class, 'storage'])->name('monitors.storage');
     Route::get('/monitors/logs', [DashboardController::class, 'logs'])->name('monitors.logs');
     Route::get('/browser-monitoring', [BrowserMonitoringController::class, 'index'])->name('browser-monitoring.index');
+    Route::get('/cloud', [CloudDashboardController::class, 'index'])->name('cloud.index');
+    Route::get('/cloud/instances', [CloudDashboardController::class, 'instances'])->name('cloud.instances');
+    Route::get('/cloud/instances/data', [CloudDashboardController::class, 'instanceData'])->name('cloud.instances.data');
+    Route::get('/cloud/databases', [CloudDashboardController::class, 'databases'])->name('cloud.databases');
+    Route::get('/cloud/databases/data', [CloudDashboardController::class, 'databaseData'])->name('cloud.databases.data');
+    Route::get('/cloud/recommendations', [CloudDashboardController::class, 'recommendations'])->name('cloud.recommendations');
     Route::get('/website-monitors', [WebsiteMonitorController::class, 'index'])->name('website-monitors.index');
     Route::get('/team', [TeamController::class, 'index'])->name('team.index');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -59,6 +66,7 @@ Route::middleware('auth')->group(function (): void {
         Route::patch('/settings/mail', [SettingsController::class, 'mail'])->name('settings.mail.update');
         Route::patch('/settings/branding', [SettingsController::class, 'branding'])->name('settings.branding.update');
         Route::patch('/settings/retention', [SettingsController::class, 'retention'])->name('settings.retention.update');
+        Route::patch('/settings/cloud', [SettingsController::class, 'cloud'])->name('settings.cloud.update');
         Route::delete('/settings/factory-reset', [SettingsController::class, 'factoryReset'])
             ->middleware('throttle:3,1')
             ->name('settings.factory-reset');

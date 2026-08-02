@@ -23,6 +23,8 @@ class DataRetentionPruner
             'browser_events' => 'occurred_at',
             'agent_log_chunks' => 'captured_at',
             'website_monitor_alerts' => 'sent_at',
+            'aws_metric_samples' => 'sampled_at',
+            'aws_database_query_samples' => 'window_ended_at',
         ];
         $deleted = [];
 

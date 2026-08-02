@@ -21,6 +21,7 @@
             <nav class="ml-4 hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
                 <a href="{{ route('dashboard') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('dashboard') }}">Dashboard</a>
                 <a href="{{ route('monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('monitor') }}">Servers</a>
+                <a href="{{ route('cloud.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('cloud') }}">Cloud</a>
                 <a href="{{ route('website-monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('uptime') }}">Uptime</a>
                 <a href="{{ route('browser-monitoring.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('browser') }}">Browser</a>
                 @if(auth()->user()->is_admin)
@@ -60,6 +61,7 @@
             <nav class="grid gap-1" aria-label="Mobile navigation">
                 <a href="{{ route('dashboard') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('dashboard') }}">Dashboard</a>
                 <a href="{{ route('monitors.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('monitor') }}">Server Monitoring</a>
+                <a href="{{ route('cloud.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('cloud') }}">AWS Cloud</a>
                 <a href="{{ route('website-monitors.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('uptime') }}">Website Uptime</a>
                 <a href="{{ route('browser-monitoring.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('browser') }}">Browser Monitoring</a>
                 @if(auth()->user()->is_admin)

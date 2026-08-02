@@ -6,6 +6,11 @@ return [
         'token' => env('AGENT_API_TOKEN'),
     ],
 
+    'aws_monitoring' => [
+        'principal_arn' => env('AWS_MONITORING_PRINCIPAL_ARN'),
+        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

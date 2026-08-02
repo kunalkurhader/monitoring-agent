@@ -3,7 +3,7 @@
 <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"><x-app-header active="settings" />
 <main id="settings-page" class="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6"><div><p class="text-sm font-medium text-emerald-600">Administration</p><h1 class="text-2xl font-semibold">Settings</h1><p class="mt-1 text-sm text-slate-500">Configure branding, monitoring agents, notifications, and data lifecycle.</p></div>
 @if(session('status'))<div class="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>@endif
-<nav class="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-3 dark:border-slate-800" role="tablist" aria-label="Settings sections"><button type="button" role="tab" data-settings-tab="branding" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Branding</button><button type="button" role="tab" data-settings-tab="uptime-monitoring" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Uptime Monitors</button><button type="button" role="tab" data-settings-tab="server-agent" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Server Agent</button><button type="button" role="tab" data-settings-tab="browser-agent" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Browser Agent</button><button type="button" role="tab" data-settings-tab="data-retention" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Data Retention</button><button type="button" role="tab" data-settings-tab="email-delivery" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Email Settings</button><button type="button" role="tab" data-settings-tab="danger-zone" class="rounded-lg px-4 py-2 text-sm font-medium text-red-600 shadow-sm dark:text-red-300">Danger Zone</button></nav>
+<nav class="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-3 dark:border-slate-800" role="tablist" aria-label="Settings sections"><button type="button" role="tab" data-settings-tab="branding" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Branding</button><button type="button" role="tab" data-settings-tab="uptime-monitoring" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Uptime Monitors</button><button type="button" role="tab" data-settings-tab="server-agent" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Server Agent</button><button type="button" role="tab" data-settings-tab="cloud" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Cloud</button><button type="button" role="tab" data-settings-tab="browser-agent" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Browser Agent</button><button type="button" role="tab" data-settings-tab="data-retention" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Data Retention</button><button type="button" role="tab" data-settings-tab="email-delivery" class="rounded-lg px-4 py-2 text-sm font-medium shadow-sm">Email Settings</button><button type="button" role="tab" data-settings-tab="danger-zone" class="rounded-lg px-4 py-2 text-sm font-medium text-red-600 shadow-sm dark:text-red-300">Danger Zone</button></nav>
 
 <section id="branding" data-settings-panel="branding" role="tabpanel" class="pt-7">
     <div class="mb-5"><h2 class="text-xl font-semibold">Branding</h2><p class="mt-1 text-sm text-slate-500">Give this installation your organization’s identity. Changes apply across navigation, page titles, sign-in, and email invitations.</p></div>
@@ -38,6 +38,88 @@
 </section>
 
 <section id="server-agent" data-settings-panel="server-agent" role="tabpanel" class="hidden pt-7"><div class="mb-4"><h2 class="text-xl font-semibold">Install Server Agent</h2><p class="mt-1 text-sm text-slate-500">Install the Java agent on a Linux server to collect CPU, RAM, disk, and process telemetry.</p></div>@include('dashboard.install-agent')</section>
+
+<section id="cloud" data-settings-panel="cloud" role="tabpanel" class="hidden pt-7">
+    <div class="mb-5"><p class="text-sm font-medium text-emerald-600">AWS integration</p><h2 class="text-xl font-semibold">Connect an AWS account</h2><p class="mt-1 max-w-3xl text-sm text-slate-500">Create a cross-account read-only role. Monitoring Agent uses STS temporary credentials; no AWS access key or secret is stored here.</p></div>
+    <div class="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
+        <div class="chart-panel">
+            <div class="panel-heading"><h3>Role creation steps</h3><span>AWS IAM Console</span></div>
+            <ol class="space-y-5 text-sm">
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">1</span><div><p class="font-medium">Create the monitoring permissions policy</p><p class="mt-1 text-slate-500">In the account to monitor, open IAM → Policies → Create policy → JSON. This read-only policy covers EC2, EBS, VPC, security groups, Elastic IPs, RDS, CloudWatch, and Performance Insights.</p><textarea readonly rows="11" class="setup-input mt-3 font-mono text-xs">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["ec2:Describe*", "rds:Describe*",
+      "cloudwatch:GetMetricData",
+      "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics",
+      "cloudwatch:DescribeAlarms", "tag:GetResources",
+      "pi:DescribeDimensionKeys", "pi:GetResourceMetrics",
+      "pi:GetDimensionKeyDetails", "pi:ListAvailableResourceMetrics"],
+    "Resource": "*"
+  }]
+}</textarea><p class="mt-2 text-xs text-slate-500">Name it <span class="font-mono">MonitoringAgentReadOnly</span>.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">2</span><div class="min-w-0 flex-1"><p class="font-medium">Create the cross-account role</p><p class="mt-1 text-slate-500">Open IAM → Roles → Create role → Custom trust policy. Replace the principal placeholder if this installation has not configured <span class="font-mono">AWS_MONITORING_PRINCIPAL_ARN</span>.</p><textarea readonly rows="13" class="setup-input mt-3 font-mono text-xs">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "{{ config('services.aws_monitoring.principal_arn') ?: 'SET_AWS_MONITORING_PRINCIPAL_ARN' }}"
+    },
+    "Action": "sts:AssumeRole",
+    "Condition": {"StringEquals": {
+      "sts:ExternalId": "{{ $awsExternalId }}"
+    }}
+  }]
+}</textarea></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">3</span><div><p class="font-medium">Attach the policy and copy the role ARN</p><p class="mt-1 text-slate-500">Attach <span class="font-mono">MonitoringAgentReadOnly</span>, name the role <span class="font-mono">MonitoringAgentRole</span>, create it, then copy its ARN into the connection form.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">4</span><div class="min-w-0 flex-1"><p class="font-medium">Allow the Monitoring Agent identity to assume the role</p><p class="mt-1 text-slate-500">The IAM user or role configured as <span class="font-mono">AWS_MONITORING_PRINCIPAL_ARN</span> also needs an identity policy permitting <span class="font-mono">sts:AssumeRole</span> on the new role.</p><textarea readonly rows="10" class="setup-input mt-3 font-mono text-xs">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "arn:aws:iam::TARGET_ACCOUNT_ID:role/MonitoringAgentRole"
+  }]
+}</textarea><p class="mt-2 text-xs text-slate-500">Configure the source identity through the standard AWS credential chain on this server; do not paste access keys into this form.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">5</span><div class="min-w-0 flex-1"><p class="font-medium">Enable OS memory and filesystem insights (optional)</p><p class="mt-1 text-slate-500">On each EC2 instance, install the Amazon CloudWatch Agent and attach <span class="font-mono">CloudWatchAgentServerPolicy</span> to its instance profile. Use this configuration to publish memory and per-filesystem total, used, and free space:</p><textarea readonly rows="18" class="setup-input mt-3 font-mono text-xs">{
+  "agent": {"metrics_collection_interval": 60},
+  "metrics": {
+    "namespace": "CWAgent",
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}",
+      "InstanceType": "${aws:InstanceType}",
+      "AutoScalingGroupName": "${aws:AutoScalingGroupName}"
+    },
+    "metrics_collected": {
+      "mem": {"measurement": ["mem_used_percent"]},
+      "disk": {
+        "resources": ["*"],
+        "measurement": ["disk_total", "disk_used", "disk_free",
+          "disk_used_percent", "disk_inodes_free"]
+      }
+    }
+  }
+}</textarea><p class="mt-2 text-xs text-slate-500">Without the CloudWatch Agent, EC2 monitoring still shows attached EBS capacity and I/O, but AWS does not expose filesystem free space from inside the guest OS.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">6</span><div><p class="font-medium">Enable RDS Performance Insights (optional)</p><p class="mt-1 text-slate-500">Enable Performance Insights on each supported RDS database to populate SQL load, calls, average latency, and query execution insights. Standard RDS health metrics remain available when it is disabled; exact query dimensions vary by engine.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">7</span><div><p class="font-medium">Save, schedule, and verify</p><p class="mt-1 text-slate-500">Enter the role ARN, regions, and fetch interval, then save. Ensure Laravel's scheduler runs every minute; the connection interval controls when AWS is actually queried. For an immediate first import, run <span class="font-mono">php artisan cloud:sync --force</span>.</p><p class="mt-2 text-xs text-slate-500">Security group and Elastic IP findings are recommendations only. Monitoring Agent never changes AWS resources.</p></div></li>
+            </ol>
+        </div>
+        <form method="POST" action="{{ route('settings.cloud.update') }}" class="chart-panel self-start">@csrf @method('PATCH')
+            <div class="panel-heading"><h3>Cloud connection</h3><span class="{{ $awsConnection?->status === 'connected' ? 'text-emerald-600' : 'text-amber-500' }}">{{ ucfirst($awsConnection?->status ?? 'not configured') }}</span></div>
+            <div class="space-y-4">
+                <label class="setup-label">Connection name<input name="name" value="{{ old('name', $awsConnection?->name ?? 'AWS Production') }}" required maxlength="255" class="setup-input mt-2" placeholder="AWS Production"></label>
+                <label class="setup-label">Role ARN<input name="role_arn" value="{{ old('role_arn', $awsConnection?->role_arn) }}" required class="setup-input mt-2 font-mono text-xs" placeholder="arn:aws:iam::123456789012:role/MonitoringAgentRole"></label>
+                <label class="setup-label">External ID<input name="external_id" value="{{ old('external_id', $awsExternalId) }}" required readonly class="setup-input mt-2 font-mono text-xs"></label>
+                <label class="setup-label">AWS regions <span class="font-normal text-slate-400">(comma separated)</span><input name="regions" value="{{ old('regions', implode(', ', $awsConnection?->regions ?? ['ap-south-1'])) }}" class="setup-input mt-2" placeholder="ap-south-1, us-east-1"><span class="mt-1 block text-xs font-normal text-slate-500">Leave empty to discover all enabled regions.</span></label>
+                <label class="setup-label">Fetch interval<select name="poll_interval_minutes" class="setup-input mt-2"><option value="1" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 1)>Every minute</option><option value="5" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 5)>Every 5 minutes (default)</option><option value="10" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 10)>Every 10 minutes</option><option value="15" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 15)>Every 15 minutes</option><option value="30" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 30)>Every 30 minutes</option><option value="60" @selected(old('poll_interval_minutes', $awsConnection?->poll_interval_minutes ?? 5) == 60)>Every hour</option></select></label>
+                <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700"><input type="hidden" name="is_active" value="0"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $awsConnection?->is_active ?? true)) class="size-4 rounded">Fetch AWS inventory and metrics automatically</label>
+            </div>
+            @if($awsConnection?->last_synced_at)<p class="mt-4 text-xs text-slate-500">Last synchronized {{ $awsConnection->last_synced_at->diffForHumans() }}.</p>@endif
+            @if($awsConnection?->last_error)<p class="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{{ $awsConnection->last_error }}</p>@endif
+            @if($errors->cloud->any())<div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{{ $errors->cloud->first() }}</div>@endif
+            <button class="mt-5 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-400">Save AWS connection</button>
+        </form>
+    </div>
+</section>
 
 <section id="browser-agent" data-settings-panel="browser-agent" role="tabpanel" class="hidden pt-7"><div class="mb-4"><h2 class="text-xl font-semibold">Install Browser Agent</h2><p class="mt-1 text-sm text-slate-500">Add the JavaScript agent to a website to collect page loads, AJAX/HTMX requests, Web Vitals, and frontend errors.</p></div>
 <div class="grid gap-5 xl:grid-cols-2"><div class="chart-panel"><div class="panel-heading"><h3>Register website</h3><span>Exact origin validation</span></div><form method="POST" action="{{ route('browser-monitoring.store') }}" class="space-y-4">@csrf<label class="setup-label">Website name<input name="name" value="{{ old('name') }}" required maxlength="255" class="setup-input mt-2" placeholder="Customer portal"></label><label class="setup-label">Website URL<input name="site_url" value="{{ old('site_url') }}" required type="url" class="setup-input mt-2" placeholder="https://app.example.com"></label><button class="rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white">Generate Browser Agent key</button></form></div>

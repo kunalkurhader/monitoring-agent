@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AwsConnection;
 use App\Models\BrandingSetting;
 use App\Models\BrowserProject;
 use App\Models\DataRetentionSetting;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
@@ -28,13 +30,54 @@ class SettingsController extends Controller
 
     public function index(): View
     {
+        $awsConnection = AwsConnection::query()->first();
+        if (! $awsConnection && ! session()->has('aws_external_id')) {
+            session()->put('aws_external_id', (string) Str::uuid());
+        }
+
         return view('settings.index', [
             'browserProjects' => BrowserProject::query()->orderBy('name')->get(),
             'brandingSetting' => BrandingSetting::query()->first(),
             'mailSetting' => MailSetting::query()->first(),
             'retentionSetting' => DataRetentionSetting::query()->firstOrCreate([], ['retention_days' => 30]),
             'websiteMonitors' => WebsiteMonitor::query()->latest()->get(),
+            'awsConnection' => $awsConnection,
+            'awsExternalId' => $awsConnection?->external_id ?? session('aws_external_id'),
         ]);
+    }
+
+    public function cloud(Request $request): RedirectResponse
+    {
+        $validated = $request->validateWithBag('cloud', [
+            'name' => ['required', 'string', 'max:255'],
+            'role_arn' => ['required', 'string', 'max:2048', 'regex:/^arn:(aws|aws-us-gov|aws-cn):iam::\d{12}:role\/.+$/'],
+            'external_id' => ['required', 'string', 'min:8', 'max:255'],
+            'regions' => ['nullable', 'string', 'max:2000'],
+            'poll_interval_minutes' => ['required', 'integer', Rule::in([1, 5, 10, 15, 30, 60])],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $regions = collect(explode(',', (string) ($validated['regions'] ?? '')))
+            ->map(fn (string $region): string => trim($region))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        AwsConnection::query()->updateOrCreate([], [
+            'name' => $validated['name'],
+            'role_arn' => $validated['role_arn'],
+            'external_id' => $validated['external_id'],
+            'regions' => $regions,
+            'poll_interval_minutes' => $validated['poll_interval_minutes'],
+            'is_active' => $request->boolean('is_active'),
+            'status' => 'pending',
+            'last_error' => null,
+        ]);
+
+        $request->session()->forget('aws_external_id');
+
+        return redirect()->to(route('settings.index').'#cloud')->with('status', 'AWS cloud settings saved. Data will be fetched on the next scheduled sync.');
     }
 
     public function branding(Request $request): RedirectResponse
@@ -174,6 +217,11 @@ class SettingsController extends Controller
     private function eraseApplicationData(): void
     {
         $tables = [
+            'aws_optimization_findings',
+            'aws_database_query_samples',
+            'aws_metric_samples',
+            'aws_resources',
+            'aws_connections',
             'data_retention_settings',
             'agent_build_artifacts',
             'website_monitor_alerts',

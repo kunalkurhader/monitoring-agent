@@ -20,6 +20,11 @@ HTTP API.
 - AJAX dashboard with CPU, RAM, process, and storage history
 - Historical process snapshots and process CPU heatmap
 - Historical storage occupancy with status progress bars
+- Cross-account AWS monitoring through an external-ID protected read-only role
+- Cloud inventory for Auto Scaling groups, EC2, EBS, RDS, and VPC resources
+- EC2 and RDS dashboards with resource-level health and historical metrics
+- Optional CloudWatch Agent filesystem/memory and RDS Performance Insights SQL data
+- Read-only security group and Elastic IP optimization recommendations
 - Configured log-file synchronization with offsets, rotation handling, filters,
   and paginated viewing
 - One-minute website uptime monitoring with HTTP status and response time
@@ -57,6 +62,7 @@ HTTP API.
 - Tailwind CSS 4 and Vite
 - Java 17
 - Maven
+- AWS SDK for PHP
 - MySQL, PostgreSQL, or Oracle
 
 ## Linux installation
@@ -255,6 +261,11 @@ Laravel migrations manage both application and monitoring tables:
 - `disk_stats`
 - `agent_log_files`
 - `agent_log_chunks`
+- `aws_connections`
+- `aws_resources`
+- `aws_metric_samples`
+- `aws_database_query_samples`
+- `aws_optimization_findings`
 - Laravel session, cache, and queue tables
 
 The Java agent no longer executes Liquibase or SQL migration files. Run the web
@@ -569,6 +580,66 @@ java -jar agent/target/agent-1.0.0.jar
 For production, run the agent as a systemd service so it starts on boot and is
 restarted automatically.
 
+## AWS Cloud monitoring
+
+Administrators can connect an AWS account from **Settings → Cloud** without
+storing long-lived AWS access keys in Monitoring Agent. The application uses
+the AWS SDK credential chain for its source identity, assumes a read-only role
+in the target account with STS, and keeps the connection's external ID
+encrypted in the application database.
+
+Before creating a connection:
+
+1. Set `AWS_MONITORING_PRINCIPAL_ARN` to the ARN of the IAM user or role used by
+   this installation and provide its credentials through the normal AWS SDK
+   credential chain (for example, an EC2 instance profile).
+2. In the target AWS account, follow the policy and trust-policy instructions
+   shown under **Settings → Cloud**. The target role trusts the configured
+   principal and requires the generated external ID.
+3. Give the source identity permission to call `sts:AssumeRole` on the target
+   `MonitoringAgentRole`.
+4. Save the role ARN, AWS regions, and polling interval. The default interval is
+   five minutes.
+
+The cloud dashboard summarizes Auto Scaling groups, EC2 instances, EBS
+volumes, RDS databases, and VPCs. EC2 and RDS detail pages use the same
+resource-oriented presentation as server monitoring, including overview,
+insights, configuration, and historical charts. The collector records EC2 CPU,
+network, disk I/O, and status checks; RDS CPU, connections, storage, memory,
+latency, throughput, and I/O; and attached EBS capacity and performance.
+
+AWS does not expose guest filesystem free space through standard EC2 or EBS
+metrics. Install the Amazon CloudWatch Agent with the configuration provided in
+**Settings → Cloud** to add memory and per-filesystem total, used, free,
+utilization, and inode data. Enable RDS Performance Insights on supported
+databases to add database load and available query-level calls, average
+latency, and execution-time insights. Query dimensions and metrics vary by
+database engine and AWS configuration.
+
+The optimization advisor analyzes security groups and Elastic IP addresses. It
+flags broad ingress exposure, unrestricted sensitive ports, unused security
+groups, unassociated addresses, and addresses attached to stopped instances.
+Findings include severity, evidence, and recommended action. This integration
+is strictly advisory: it does not modify, detach, release, or delete AWS
+resources.
+
+Run an immediate import with:
+
+```bash
+php artisan cloud:sync --force
+```
+
+For development and demonstrations, seed a simulated inactive connection with
+three Auto Scaling groups, 30 EC2 instances, four RDS databases, one VPC, EBS
+and filesystem metrics, query samples, and optimization findings:
+
+```bash
+php artisan db:seed --class=AwsCloudDemoSeeder
+```
+
+The demo connection is inactive so scheduled collection cannot accidentally
+replace simulated data with calls to a real AWS account.
+
 ## Local development
 
 Install dependencies and create a local environment:
@@ -608,6 +679,7 @@ For the full production crontab procedure, see
 | --- | --- | --- |
 | `monitors:check` | Every minute | Check website HTTP availability and SSL certificates, then send deduplicated alerts. |
 | `agents:cleanup-builds` | Every minute | Remove expired temporary JAR records and private files. |
+| `cloud:sync` | Every minute | Sync due active AWS connections; each connection's polling interval defaults to five minutes. |
 | `data:prune` | Hourly | Delete historical monitoring records outside the configured retention window. |
 
 Inspect the effective schedule with:
@@ -617,8 +689,8 @@ php artisan schedule:list
 ```
 
 The scheduler must run continuously in production. Without it, server and
-browser ingestion still accepts incoming data, but uptime checks, temporary JAR
-cleanup, and retention pruning will not run automatically.
+browser ingestion still accepts incoming data, but AWS collection, uptime
+checks, temporary JAR cleanup, and retention pruning will not run automatically.
 
 ## Testing
 
@@ -667,13 +739,16 @@ cutoff from the current setting and permanently removes older records from:
 - disk snapshots (`disk_stats`);
 - browser monitoring events (`browser_events`);
 - synchronized log content (`agent_log_chunks`); and
-- historical website uptime/SSL alert records (`website_monitor_alerts`).
+- historical website uptime/SSL alert records (`website_monitor_alerts`);
+- AWS CloudWatch metric samples (`aws_metric_samples`); and
+- RDS query and Performance Insights samples (`aws_database_query_samples`).
 
 Retention cleanup preserves user accounts, team membership, agents, API
 tokens, browser projects, website monitor definitions, mail settings, branding,
-and other application configuration. Agent log-file definitions and durable
-offsets are also preserved, so log synchronization continues from the last
-acknowledged position after old content is removed.
+AWS connections, discovered cloud resources, optimization findings, and other
+application configuration. Agent log-file definitions and durable offsets are
+also preserved, so log synchronization continues from the last acknowledged
+position after old content is removed.
 
 Run retention cleanup immediately when required:
 
@@ -691,8 +766,9 @@ Administrators can perform a factory reset from **Settings → Danger Zone**.
 The action requires the administrator password and the exact confirmation
 phrase `ERASE EVERYTHING`. It permanently removes users, monitoring telemetry,
 registered agents, API tokens, browser monitoring data, synchronized logs,
-website monitors and alert history, invitations, email settings, branding,
-uploaded logos, temporary agent builds, queued jobs, and cached data. It also clears the configured
+website monitors and alert history, AWS connections, cloud inventory, cloud
+metrics, query samples, optimization findings, invitations, email settings,
+branding, uploaded logos, temporary agent builds, queued jobs, and cached data. It also clears the configured
 database credentials, invalidates the current session, and returns the
 application to the setup wizard. The reset interface keeps the destructive
 action disabled until the administrator password and exact confirmation phrase
