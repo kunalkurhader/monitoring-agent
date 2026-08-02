@@ -36,6 +36,19 @@ HTTP API.
 - Laravel-managed database schema
 - Protection against running the setup wizard again after installation
 
+## Roadmap
+
+- Metric and process threshold alerts, with Slack, webhook, and PagerDuty delivery
+- Custom dashboards, tags, groups, and fleet filtering
+- Network I/O, load average, disk I/O, and service-state metrics
+- REST/API, TCP, DNS, and multi-location checks
+- Structured log parsing, full-text search, and alert rules
+- Container and Kubernetes discovery
+- OpenTelemetry ingestion and basic distributed tracing
+- SSO, audit logs, granular RBAC, and encrypted secrets
+- Status pages, maintenance windows, SLIs, and SLOs
+- Horizontal scaling, ingestion queues, and documented capacity benchmarks
+
 ## Technology
 
 - Laravel 13
