@@ -2,15 +2,50 @@
 
 namespace Tests\Feature;
 
+use App\Models\BrandingSetting;
 use App\Models\MailSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class SettingsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_admin_can_customize_site_name_and_logo(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->actingAs($admin)->patch(route('settings.branding.update'), [
+            'site_name' => 'Acme Observability',
+            'logo' => UploadedFile::fake()->image('acme-logo.png', 320, 120),
+        ])->assertRedirect(route('settings.index').'#branding');
+
+        $branding = BrandingSetting::query()->firstOrFail();
+        $this->assertSame('Acme Observability', $branding->site_name);
+        Storage::disk('local')->assertExists($branding->logo_path);
+
+        $this->get(route('branding.logo'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+    }
+
+    public function test_branding_rejects_unsupported_logo_files(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->actingAs($admin)->patch(route('settings.branding.update'), [
+            'site_name' => 'Acme Observability',
+            'logo' => UploadedFile::fake()->create('logo.svg', 10, 'image/svg+xml'),
+        ])->assertSessionHasErrors('logo', null, 'branding');
+
+        $this->assertDatabaseCount('branding_settings', 0);
+    }
 
     public function test_admin_can_save_encrypted_smtp_settings(): void
     {
@@ -19,7 +54,7 @@ class SettingsTest extends TestCase
         $this->actingAs($admin)->patch(route('settings.mail.update'), [
             'host' => 'smtp.example.com', 'port' => 587, 'scheme' => null,
             'username' => 'mailer@example.com', 'password' => 'smtp-secret-value',
-            'from_address' => 'monitoring@example.com', 'from_name' => 'Pulsewatch Alerts', 'is_enabled' => '1',
+            'from_address' => 'monitoring@example.com', 'from_name' => 'Monitoring Agent Alerts', 'is_enabled' => '1',
         ])->assertRedirect(route('settings.index').'#email-delivery');
 
         $setting = MailSetting::query()->firstOrFail();

@@ -30,6 +30,17 @@ if (fleet) {
             document.getElementById('browser-empty').classList.toggle('hidden', payload.browser_monitors.length > 0);
             document.getElementById('browser-table').classList.toggle('hidden', payload.browser_monitors.length === 0);
             document.getElementById('browser-monitors').innerHTML = payload.browser_monitors.map((monitor) => `<tr><td class="py-3"><a class="font-medium text-emerald-600 hover:underline" href="${fleet.dataset.browserUrl}?project=${encodeURIComponent(monitor.id)}">${escape(monitor.name)}</a><p class="mt-1 text-xs text-slate-500">${escape(monitor.origin)}</p></td><td><span class="rounded-full px-2.5 py-1 text-xs ${colors[monitor.status]}">${monitor.status}</span></td><td class="text-right">${monitor.page_loads}</td><td class="text-right">${monitor.requests}</td><td class="text-right">${monitor.average_load === null ? 'No data' : `${monitor.average_load.toLocaleString()} ms`}</td><td class="text-right ${monitor.errors ? 'font-medium text-red-500' : 'text-emerald-600'}">${monitor.errors}</td><td class="text-right text-slate-500">${monitor.last_seen_at ? new Date(monitor.last_seen_at).toLocaleString() : 'Never'}</td></tr>`).join('');
+
+            document.getElementById('uptime-total').textContent = payload.uptime_summary.total;
+            document.getElementById('uptime-healthy').textContent = payload.uptime_summary.healthy;
+            document.getElementById('uptime-unavailable').textContent = payload.uptime_summary.unavailable;
+            document.getElementById('uptime-pending').textContent = payload.uptime_summary.pending;
+            document.getElementById('uptime-ssl').textContent = payload.uptime_summary.ssl_expiring;
+            document.getElementById('uptime-empty').classList.toggle('hidden', payload.uptime_monitors.length > 0);
+            document.getElementById('uptime-table').classList.toggle('hidden', payload.uptime_monitors.length === 0);
+            const uptimeColors = {...colors, paused: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'};
+            const uptimeLabels = {healthy: 'Operational', error: 'Unavailable', warning: 'Pending', paused: 'Paused'};
+            document.getElementById('uptime-monitors').innerHTML = payload.uptime_monitors.map((monitor) => `<tr><td class="py-3"><a class="font-medium text-emerald-600 hover:underline" href="${fleet.dataset.uptimeUrl}">${escape(monitor.name)}</a><p class="mt-1 max-w-md truncate text-xs text-slate-500">${escape(monitor.url)}</p></td><td><span class="rounded-full px-2.5 py-1 text-xs ${uptimeColors[monitor.status]}">${uptimeLabels[monitor.status]}</span></td><td class="text-right">${monitor.status_code === null ? '—' : monitor.status_code}</td><td class="text-right">${monitor.response_ms === null ? '—' : `${monitor.response_ms} ms`}</td><td class="text-right ${monitor.ssl_days !== null && monitor.ssl_days <= 30 ? 'text-amber-600' : ''}">${monitor.ssl_days === null ? '—' : (monitor.ssl_days < 0 ? `Expired ${Math.abs(monitor.ssl_days)}d ago` : monitor.ssl_days === 0 ? 'Expires today' : `${monitor.ssl_days}d left`)}</td><td class="text-right text-slate-500">${monitor.last_checked_at ? new Date(monitor.last_checked_at).toLocaleString() : 'Never'}</td></tr>`).join('');
             document.getElementById('fleet-error').classList.add('hidden');
         } catch (error) {
             document.getElementById('fleet-error').textContent = error.message;

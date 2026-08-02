@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" class="scheme-light">
 <head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Team · Pulsewatch</title>
-    <script>if(localStorage.getItem('pulsewatch-theme')==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.replace('scheme-light','scheme-dark')}</script>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Team · {{ config('app.name', 'Monitoring Agent') }}</title>
+    <script>if(localStorage.getItem('monitoring-agent-theme')==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.replace('scheme-light','scheme-dark')}</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">

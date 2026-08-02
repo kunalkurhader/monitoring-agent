@@ -22,8 +22,8 @@ class DashboardDemoSeeder extends Seeder
     public function run(): void
     {
         User::query()->updateOrCreate(
-            ['email' => 'demo@pulsewatch.local'],
-            ['name' => 'Demo Administrator', 'password' => Hash::make('PulsewatchDemo123!'), 'is_admin' => true, 'email_verified_at' => now()],
+            ['email' => 'demo@monitoring-agent.local'],
+            ['name' => 'Demo Administrator', 'password' => Hash::make('MonitoringAgentDemo123!'), 'is_admin' => true, 'email_verified_at' => now()],
         );
 
         $end = CarbonImmutable::now()->startOfSecond();
@@ -38,6 +38,7 @@ class DashboardDemoSeeder extends Seeder
             DB::table('system_stats')->where('agent_id', $definition['id'])->delete();
             DB::table('process_stats')->where('agent_id', $definition['id'])->delete();
             DB::table('disk_stats')->where('agent_id', $definition['id'])->delete();
+            DB::table('agent_log_files')->where('agent_id', $definition['id'])->delete();
 
             $systemRows = [];
             $processRows = [];
@@ -83,6 +84,51 @@ class DashboardDemoSeeder extends Seeder
                 DB::table('system_stats')->insert($systemRows);
                 DB::table('process_stats')->insert($processRows);
                 DB::table('disk_stats')->insert($diskRows);
+            }
+
+            $this->seedLogs($definition, $end);
+        }
+    }
+
+    private function seedLogs(array $agent, CarbonImmutable $end): void
+    {
+        $paths = [
+            '/var/log/monitoring-agent/application.log',
+            '/var/log/nginx/error.log',
+        ];
+
+        foreach ($paths as $pathIndex => $path) {
+            $fileId = DB::table('agent_log_files')->insertGetId([
+                'agent_id' => $agent['id'],
+                'path_hash' => hash('sha256', $path),
+                'path' => $path,
+                'name' => basename($path),
+                'file_key' => 'demo-'.$pathIndex,
+                'last_offset' => 48_000 + ($pathIndex * 12_000),
+                'status' => 'ready',
+                'last_seen_at' => $end,
+                'created_at' => $end,
+                'updated_at' => $end,
+            ]);
+
+            for ($chunk = 0; $chunk < 18; $chunk++) {
+                $capturedAt = $end->subMinutes((17 - $chunk) * 75 + ($pathIndex * 8));
+                $level = $chunk % 7 === 0 ? 'ERROR' : ($chunk % 4 === 0 ? 'WARN' : 'INFO');
+                $message = $pathIndex === 0
+                    ? sprintf('%s request_id=demo-%02d queue=%s duration_ms=%d', $level, $chunk, $chunk % 3 === 0 ? 'notifications' : 'default', 85 + ($chunk * 17))
+                    : sprintf('%s upstream response host=%s status=%d response_time=%.3fs', $level, $agent['hostname'], $level === 'ERROR' ? 502 : 200, .12 + ($chunk / 100));
+                $startOffset = $chunk * 2_500;
+
+                DB::table('agent_log_chunks')->insert([
+                    'agent_log_file_id' => $fileId,
+                    'start_offset' => $startOffset,
+                    'end_offset' => $startOffset + strlen($message) + 1,
+                    'line_count' => 1,
+                    'content' => '['.$capturedAt->toIso8601String().'] '.$message.PHP_EOL,
+                    'captured_at' => $capturedAt,
+                    'created_at' => $capturedAt,
+                    'updated_at' => $capturedAt,
+                ]);
             }
         }
     }

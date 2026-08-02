@@ -6,6 +6,7 @@ import com.kunalkurhade.agent.config.AgentConfig;
 import com.kunalkurhade.agent.model.ProcessStats;
 import com.kunalkurhade.agent.model.SystemStats;
 import com.kunalkurhade.agent.model.DiskStats;
+import com.kunalkurhade.agent.model.LogFileChunk;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -62,6 +63,18 @@ public class ApiClient {
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
 
+        send(request, 202);
+    }
+
+    public void sendLogChunks(List<LogFileChunk> files) throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("agent_id", config.agentId);
+        payload.put("hostname", config.hostname);
+        payload.put("files", files);
+        HttpRequest request = request("/api/v1/agent/logs")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                .build();
         send(request, 202);
     }
 

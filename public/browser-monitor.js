@@ -70,16 +70,16 @@
         var nativeOpen = XMLHttpRequest.prototype.open;
         var nativeSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.open = function (method, url) {
-            this.__pulsewatchMethod = method;
-            this.__pulsewatchUrl = url;
+            this.__monitoringAgentMethod = method;
+            this.__monitoringAgentUrl = url;
             return nativeOpen.apply(this, arguments);
         };
         XMLHttpRequest.prototype.send = function () {
             var xhr = this;
             var started = performance.now();
-            if (!isCollector(xhr.__pulsewatchUrl)) {
+            if (!isCollector(xhr.__monitoringAgentUrl)) {
                 xhr.addEventListener('loadend', function () {
-                    if (!htmxRequests || !htmxRequests.has(xhr)) requestEvent('ajax', xhr.__pulsewatchUrl, xhr.__pulsewatchMethod, started, xhr.status);
+                    if (!htmxRequests || !htmxRequests.has(xhr)) requestEvent('ajax', xhr.__monitoringAgentUrl, xhr.__monitoringAgentMethod, started, xhr.status);
                 }, { once: true });
             }
             return nativeSend.apply(xhr, arguments);

@@ -198,6 +198,11 @@ if [[ "$SKIP_BUILD" == false ]]; then
         storage/framework/views storage/logs bootstrap/cache
     chown -R "$APP_USER":www-data storage bootstrap/cache
     chmod -R ug+rwX storage bootstrap/cache
+
+    log "Installing the Laravel scheduler for one-minute website checks"
+    scheduler_file="/etc/cron.d/monitoring-agent-scheduler"
+    printf '* * * * * %s cd %s && /usr/bin/php artisan schedule:run >/dev/null 2>&1\n' "$APP_USER" "$APP_DIR" >"$scheduler_file"
+    chmod 0644 "$scheduler_file"
 fi
 
 log "Installation complete"
@@ -232,4 +237,5 @@ $database_next_step
   3. Open the Laravel base URL and complete the web setup wizard
   4. For Oracle, install Oracle Instant Client and PHP OCI8 before opening setup
   5. Configure the agent using the command documented in agent/README.md
+  6. Laravel scheduler: installed in /etc/cron.d/monitoring-agent-scheduler
 EOF

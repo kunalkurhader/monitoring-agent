@@ -42,7 +42,7 @@ class TeamController extends Controller
 
         $acceptUrl = route('invitations.accept', ['token' => $token]);
         Mail::send('emails.team-invitation', compact('invitation', 'acceptUrl'), function ($message) use ($email): void {
-            $message->to($email)->subject('You are invited to Pulsewatch');
+            $message->to($email)->subject('You are invited to '.config('app.name', 'Monitoring Agent'));
         });
 
         return back()->with('status', "Invitation sent to {$email}.");

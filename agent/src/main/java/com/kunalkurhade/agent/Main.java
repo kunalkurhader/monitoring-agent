@@ -25,8 +25,10 @@ public class Main {
             String hostname = cmd.getOptionValue("name");
             int interval = Integer.parseInt(cmd.getOptionValue("interval", "5"));
             String filterRaw = cmd.getOptionValue("f", "");
+            String[] logFiles = cmd.getOptionValues("log");
 
-            SetupRunner.run(apiUrl, apiToken, hostname, interval, filterRaw);
+            SetupRunner.run(apiUrl, apiToken, hostname, interval, filterRaw,
+                    logFiles == null ? java.util.List.of() : java.util.Arrays.asList(logFiles));
             return;
         }
 
@@ -48,7 +50,7 @@ public class Main {
         System.out.println("""
             Usage:
               Setup (one time):
-                java -jar agent.jar setup -url https://pulsewatch.example.com -token TOKEN -interval 5 -f java
+                java -jar agent.jar setup -url https://monitoring-agent.example.com -token TOKEN -interval 5 -f java -log /var/log/app.log
 
               Start agent:
                 java -jar agent.jar

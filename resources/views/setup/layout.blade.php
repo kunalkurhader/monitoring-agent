@@ -4,9 +4,9 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="robots" content="noindex, nofollow">
-        <title>@yield('title') · {{ config('app.name', 'Pulsewatch') }}</title>
+        <title>@yield('title') · {{ config('app.name', 'Monitoring Agent') }}</title>
         <script>
-            if (localStorage.getItem('pulsewatch-theme') === 'dark') {
+            if (localStorage.getItem('monitoring-agent-theme') === 'dark') {
                 document.documentElement.classList.add('dark');
                 document.documentElement.classList.replace('scheme-light', 'scheme-dark');
             }
@@ -21,10 +21,12 @@
                 <section class="hidden lg:block">
                     <div class="flex items-center justify-between">
                         <a href="/" class="inline-flex items-center gap-3 text-lg font-semibold tracking-tight">
-                            <span class="grid size-10 place-items-center rounded-xl bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-400/20">
-                                <span class="size-3 rounded-full border-[3px] border-current"></span>
-                            </span>
-                            Pulsewatch
+                            @if(config('app.branding_logo'))
+                                <span class="grid size-10 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"><img src="{{ config('app.branding_logo') }}" alt="" class="max-h-full max-w-full object-contain"></span>
+                            @else
+                                <span class="grid size-10 place-items-center rounded-xl bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-400/20"><span class="size-3 rounded-full border-[3px] border-current"></span></span>
+                            @endif
+                            {{ config('app.name', 'Monitoring Agent') }}
                         </a>
                         <button type="button" data-theme-toggle class="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-white dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Switch color theme">
                             <span data-theme-light>☾ Dark</span>
@@ -59,7 +61,7 @@
 
                 <section class="mx-auto w-full max-w-2xl">
                     <div class="mb-7 flex items-center justify-between lg:hidden">
-                        <span class="font-semibold">Pulsewatch</span>
+                        <span class="font-semibold">{{ config('app.name', 'Monitoring Agent') }}</span>
                         <div class="flex items-center gap-3">
                             <span class="text-sm text-slate-500 dark:text-slate-400">Step {{ $step }} of 3</span>
                             <button type="button" data-theme-toggle class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Switch color theme">

@@ -9,6 +9,7 @@ Route::prefix('v1/agent')->middleware(AuthenticateAgent::class)->group(function 
     Route::get('/ping', [AgentMetricsController::class, 'ping']);
     Route::post('/metrics', [AgentMetricsController::class, 'store']);
     Route::post('/disks', [AgentMetricsController::class, 'storeDisks']);
+    Route::post('/logs', [AgentMetricsController::class, 'storeLogs']);
 });
 
 Route::options('/v1/browser/events', [BrowserEventController::class, 'options']);

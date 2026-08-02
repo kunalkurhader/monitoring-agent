@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -110,6 +111,38 @@ class DashboardController extends Controller
             : collect();
 
         return response()->json(['sampled_at' => $sampledAt, 'disks' => $disks]);
+    }
+
+    public function logs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid', 'exists:agents,id'],
+            'file_id' => ['nullable', 'integer'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $files = DB::table('agent_log_files')->where('agent_id', $validated['agent_id'])
+            ->orderBy('path')->get(['id', 'name', 'path', 'status', 'last_offset', 'last_seen_at']);
+        $fileId = isset($validated['file_id']) ? (int) $validated['file_id'] : (int) ($files->first()->id ?? 0);
+        if ($fileId && ! $files->contains('id', $fileId)) {
+            abort(404);
+        }
+        $from = isset($validated['from']) ? Carbon::parse($validated['from']) : now()->subDay();
+        $to = isset($validated['to']) ? Carbon::parse($validated['to']) : now();
+        $chunks = $fileId
+            ? DB::table('agent_log_chunks')->where('agent_log_file_id', $fileId)
+                ->whereBetween('captured_at', [$from, $to])->orderByDesc('captured_at')->paginate(25)
+            : null;
+
+        return response()->json([
+            'files' => $files,
+            'selected_file_id' => $fileId ?: null,
+            'chunks' => $chunks?->items() ?? [],
+            'pagination' => $chunks ? [
+                'current_page' => $chunks->currentPage(), 'last_page' => $chunks->lastPage(), 'total' => $chunks->total(),
+            ] : ['current_page' => 1, 'last_page' => 1, 'total' => 0],
+        ]);
     }
 
     private function processHeatmap(string $agentId, int $hours): array

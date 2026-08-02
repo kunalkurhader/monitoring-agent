@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" class="scheme-light">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Profile · Pulsewatch</title><script>if(localStorage.getItem('pulsewatch-theme')==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.replace('scheme-light','scheme-dark')}</script>@vite(['resources/css/app.css','resources/js/app.js'])</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Profile · {{ config('app.name', 'Monitoring Agent') }}</title><script>if(localStorage.getItem('monitoring-agent-theme')==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.replace('scheme-light','scheme-dark')}</script>@vite(['resources/css/app.css','resources/js/app.js'])</head>
 <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"><x-app-header /><main class="mx-auto max-w-2xl px-5 py-6"><h1 class="text-xl font-semibold">Profile</h1>
 @if(session('status'))<div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>@endif
 <section class="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"><form method="POST" action="{{ route('profile.update') }}" class="space-y-5">@csrf @method('PATCH')

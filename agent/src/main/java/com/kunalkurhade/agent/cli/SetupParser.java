@@ -37,6 +37,12 @@ public class SetupParser {
                         .build()
         );
 
+        options.addOption(Option.builder("log")
+                .longOpt("log-file")
+                .hasArg()
+                .desc("Absolute log file path to synchronize; repeat for multiple files")
+                .build());
+
 
         CommandLineParser parser = new DefaultParser();
         return parser.parse(options, args);

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="h-full"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Browser Monitoring · Pulsewatch</title>@vite(['resources/css/app.css','resources/js/app.js'])</head>
+<html lang="en" class="h-full"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Browser Monitoring · {{ config('app.name', 'Monitoring Agent') }}</title>@vite(['resources/css/app.css','resources/js/app.js'])</head>
 <body class="min-h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"><x-app-header active="browser" />
 <main class="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6">
     <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="text-sm font-medium text-emerald-600">Application monitoring</p><h1 class="text-2xl font-semibold">Browser Monitoring</h1><p class="mt-1 text-sm text-slate-500">High-frequency page load, AJAX, HTMX, Web Vitals, and JavaScript telemetry for one Browser Agent.</p></div>@if(auth()->user()->is_admin)<a href="{{ route('settings.index') }}#browser-agent" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-900">Manage Browser Agents</a>@endif</div>

@@ -11,12 +11,14 @@ if (installer && installCommand) {
         const hostname = document.getElementById('install-hostname').value.trim();
         const interval = document.getElementById('install-interval').value || '5';
         const filter = document.getElementById('install-filter').value.trim();
+        const logs = document.getElementById('install-logs').value.split(/\r?\n/).map((path) => path.trim()).filter(Boolean);
         const options = [`--download-url ${shellQuote(downloadUrl)}`, `--url ${shellQuote(apiUrl)}`, `--token ${shellQuote(token || 'GENERATE_TOKEN_FIRST')}`, `--interval ${shellQuote(interval)}`];
         if (hostname) options.push(`--name ${shellQuote(hostname)}`);
         if (filter) options.push(`--filter ${shellQuote(filter)}`);
+        logs.forEach((path) => options.push(`--log ${shellQuote(path)}`));
         installCommand.value = [
-            `curl -fsSL ${shellQuote(installerUrl)} -o /tmp/pulsewatch-install-agent.sh && \\`,
-            'sudo bash /tmp/pulsewatch-install-agent.sh \\',
+            `curl -fsSL ${shellQuote(installerUrl)} -o /tmp/monitoring-agent-install.sh && \\`,
+            'sudo bash /tmp/monitoring-agent-install.sh \\',
             `  ${options.join(' \\\n  ')}`,
         ].join('\n');
         document.getElementById('copy-install-command').disabled = token.length < 56;
@@ -24,7 +26,7 @@ if (installer && installCommand) {
     };
 
     document.getElementById('install-api-url').value = window.location.origin;
-    ['install-api-url', 'install-api-token', 'install-hostname', 'install-interval', 'install-filter'].forEach((id) => document.getElementById(id).addEventListener('input', update));
+    ['install-api-url', 'install-api-token', 'install-hostname', 'install-interval', 'install-filter', 'install-logs'].forEach((id) => document.getElementById(id).addEventListener('input', update));
     document.getElementById('generate-agent-token').addEventListener('click', async () => {
         const name = document.getElementById('install-token-name').value.trim();
         const status = document.getElementById('token-generation-status');

@@ -135,4 +135,39 @@ class AgentMetricsApiTest extends TestCase
             'used_bytes' => 600000000,
         ]);
     }
+
+    public function test_agent_can_register_log_files_and_submit_idempotent_chunks(): void
+    {
+        $agentId = 'b7ebc999-12e0-4d91-8e2b-d42b4166d0f2';
+        $payload = [
+            'agent_id' => $agentId,
+            'hostname' => 'web-01',
+            'files' => [[
+                'path' => '/var/log/app.log',
+                'file_key' => '(dev=1,ino=42)',
+                'status' => 'ready',
+                'start_offset' => 100,
+                'end_offset' => 132,
+                'content' => "INFO Started\nERROR Failed request\n",
+                'captured_at' => now()->toIso8601String(),
+            ], [
+                'path' => '/var/log/pending.log',
+                'file_key' => null,
+                'status' => 'pending',
+                'start_offset' => 0,
+                'end_offset' => 0,
+                'content' => '',
+                'captured_at' => now()->toIso8601String(),
+            ]],
+        ];
+
+        $this->withToken(self::TOKEN)->postJson('/api/v1/agent/logs', $payload)
+            ->assertAccepted()->assertJsonPath('files_received', 2)->assertJsonPath('chunks_accepted', 1);
+        $this->withToken(self::TOKEN)->postJson('/api/v1/agent/logs', $payload)
+            ->assertAccepted()->assertJsonPath('chunks_accepted', 0);
+
+        $this->assertDatabaseHas('agent_log_files', ['agent_id' => $agentId, 'path' => '/var/log/app.log', 'status' => 'ready', 'last_offset' => 132]);
+        $this->assertDatabaseHas('agent_log_files', ['agent_id' => $agentId, 'path' => '/var/log/pending.log', 'status' => 'pending']);
+        $this->assertDatabaseCount('agent_log_chunks', 1);
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\BrowserProject;
+use App\Models\WebsiteMonitor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -65,6 +66,22 @@ class FleetDashboardController extends Controller
                 'last_seen_at' => $events->first()?->occurred_at?->toIso8601String(),
             ];
         });
+        $websiteMonitors = WebsiteMonitor::query()->orderByDesc('is_active')->orderBy('name')->get()->map(function (WebsiteMonitor $monitor): array {
+            $sslDays = $monitor->ssl_expires_at
+                ? (int) now()->startOfDay()->diffInDays($monitor->ssl_expires_at->copy()->startOfDay(), false)
+                : null;
+
+            return [
+                'id' => $monitor->id,
+                'name' => $monitor->name,
+                'url' => $monitor->url,
+                'status' => ! $monitor->is_active ? 'paused' : ($monitor->is_up === true ? 'healthy' : ($monitor->is_up === false ? 'error' : 'warning')),
+                'status_code' => $monitor->last_status_code,
+                'response_ms' => $monitor->last_response_ms,
+                'ssl_days' => $sslDays,
+                'last_checked_at' => $monitor->last_checked_at?->toIso8601String(),
+            ];
+        });
 
         return response()->json([
             'summary' => [
@@ -81,6 +98,14 @@ class FleetDashboardController extends Controller
                 'errors' => $browserMonitors->sum('errors'),
             ],
             'browser_monitors' => $browserMonitors->values(),
+            'uptime_summary' => [
+                'total' => $websiteMonitors->whereNotIn('status', ['paused'])->count(),
+                'healthy' => $websiteMonitors->where('status', 'healthy')->count(),
+                'unavailable' => $websiteMonitors->where('status', 'error')->count(),
+                'pending' => $websiteMonitors->where('status', 'warning')->count(),
+                'ssl_expiring' => $websiteMonitors->filter(fn (array $monitor): bool => $monitor['status'] !== 'paused' && $monitor['ssl_days'] !== null && $monitor['ssl_days'] <= 30)->count(),
+            ],
+            'uptime_monitors' => $websiteMonitors->values(),
             'server_time' => now()->toIso8601String(),
         ]);
     }

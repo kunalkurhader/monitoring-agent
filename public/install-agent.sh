@@ -7,6 +7,7 @@ api_token=""
 hostname=""
 interval="5"
 process_filter=""
+log_files=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -16,6 +17,7 @@ while [[ $# -gt 0 ]]; do
         --name) hostname="${2:-}"; shift 2 ;;
         --interval) interval="${2:-}"; shift 2 ;;
         --filter) process_filter="${2:-}"; shift 2 ;;
+        --log) log_files+=("${2:-}"); shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -42,20 +44,24 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
-install -d -m 0755 /opt/pulsewatch-agent
-curl --fail --location --silent --show-error "$download_url" -o /opt/pulsewatch-agent/agent.jar
-chmod 0644 /opt/pulsewatch-agent/agent.jar
+install -d -m 0755 /opt/monitoring-agent
+curl --fail --location --silent --show-error "$download_url" -o /opt/monitoring-agent/agent.jar
+chmod 0644 /opt/monitoring-agent/agent.jar
 
 setup_args=(setup -url "$api_url" -token "$api_token" -interval "$interval")
 if [[ -n "$hostname" ]]; then setup_args+=(-name "$hostname"); fi
 if [[ -n "$process_filter" ]]; then setup_args+=(-f "$process_filter"); fi
+for log_file in "${log_files[@]}"; do
+    if [[ "$log_file" != /* ]]; then echo "Log path must be absolute: $log_file" >&2; exit 2; fi
+    setup_args+=(-log "$log_file")
+done
 
-HOME=/root java -jar /opt/pulsewatch-agent/agent.jar "${setup_args[@]}"
+HOME=/root java -jar /opt/monitoring-agent/agent.jar "${setup_args[@]}"
 
 install -d -m 0700 /root/.monitoring-agent
-cat >/etc/systemd/system/pulsewatch-agent.service <<'UNIT'
+cat >/etc/systemd/system/monitoring-agent.service <<'UNIT'
 [Unit]
-Description=Pulsewatch Monitoring Agent
+Description=Monitoring Agent service
 After=network-online.target
 Wants=network-online.target
 
@@ -63,7 +69,7 @@ Wants=network-online.target
 Type=simple
 User=root
 Environment=HOME=/root
-ExecStart=/usr/bin/java -jar /opt/pulsewatch-agent/agent.jar start
+ExecStart=/usr/bin/java -jar /opt/monitoring-agent/agent.jar start
 Restart=always
 RestartSec=5
 
@@ -72,6 +78,6 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now pulsewatch-agent.service
+systemctl enable --now monitoring-agent.service
 
-echo "Pulsewatch agent installed and running."
+echo "Monitoring Agent installed and running."

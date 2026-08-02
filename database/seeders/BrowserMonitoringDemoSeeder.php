@@ -13,7 +13,7 @@ class BrowserMonitoringDemoSeeder extends Seeder
     public function run(): void
     {
         $user = User::query()->where('is_admin', true)->first() ?? User::factory()->create([
-            'name' => 'Demo Administrator', 'email' => 'demo@pulsewatch.local', 'password' => 'PulsewatchDemo123!', 'is_admin' => true,
+            'name' => 'Demo Administrator', 'email' => 'demo@monitoring-agent.local', 'password' => 'MonitoringAgentDemo123!', 'is_admin' => true,
         ]);
         $project = BrowserProject::query()->updateOrCreate(
             ['public_key' => 'pw_demo_'.str_repeat('b', 52)],
@@ -59,7 +59,7 @@ class BrowserMonitoringDemoSeeder extends Seeder
     private function event(int $projectId, string $viewId, string $type, string $pageUrl, ?string $message, ?string $source, ?array $metrics, $occurredAt, ?int $line = null, ?int $column = null): array
     {
         return ['browser_project_id' => $projectId, 'page_view_id' => $viewId, 'event_type' => $type, 'page_url' => $pageUrl, 'message' => $message, 'source' => $source,
-            'line_number' => $line, 'column_number' => $column, 'metrics' => $metrics ? json_encode($metrics) : null, 'user_agent' => 'Pulsewatch demo browser / Chrome',
+            'line_number' => $line, 'column_number' => $column, 'metrics' => $metrics ? json_encode($metrics) : null, 'user_agent' => 'Monitoring Agent demo browser / Chrome',
             'occurred_at' => $occurredAt, 'created_at' => $occurredAt, 'updated_at' => $occurredAt];
     }
 }

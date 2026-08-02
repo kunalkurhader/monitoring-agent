@@ -2,7 +2,7 @@
     <div class="chart-panel">
         <div class="panel-heading"><h2>Configure a Linux agent</h2><span>All fields stay in your browser</span></div>
         <div class="space-y-4">
-            <label class="setup-label" for="install-api-url">Pulsewatch URL<input class="setup-input mt-2" id="install-api-url" type="url" required></label>
+            <label class="setup-label" for="install-api-url">{{ config('app.name', 'Monitoring Agent') }} URL<input class="setup-input mt-2" id="install-api-url" type="url" required></label>
             <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                 <label class="setup-label" for="install-token-name">Token name<input class="setup-input mt-2" id="install-token-name" placeholder="Production web servers" maxlength="255"></label>
                 <button id="generate-agent-token" type="button" class="mt-3 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">Generate 64-character token</button>
@@ -12,6 +12,7 @@
             <label class="setup-label" for="install-hostname">Hostname override <span class="font-normal text-slate-500">(optional)</span><input class="setup-input mt-2" id="install-hostname" placeholder="web-prod-01"></label>
             <label class="setup-label" for="install-interval">Polling interval in seconds<input class="setup-input mt-2" id="install-interval" type="number" min="1" step="1" value="5" required></label>
             <label class="setup-label" for="install-filter">Process filter <span class="font-normal text-slate-500">(optional, comma-separated)</span><input class="setup-input mt-2" id="install-filter" placeholder="java,php,nginx"></label>
+            <label class="setup-label" for="install-logs">Log files to synchronize <span class="font-normal text-slate-500">(optional, one absolute path per line)</span><textarea class="setup-input mt-2 font-mono text-xs" id="install-logs" rows="5" placeholder="/var/log/nginx/error.log&#10;/var/www/app/storage/logs/laravel.log"></textarea><span class="mt-2 block text-xs font-normal text-slate-500">Only these explicit files are read. Existing files start at their current end; newly appended content is synchronized.</span></label>
         </div>
     </div>
     <div class="chart-panel">

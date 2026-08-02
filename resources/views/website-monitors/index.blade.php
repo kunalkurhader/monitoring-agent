@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" class="scheme-light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Website Uptime · {{ config('app.name', 'Monitoring Agent') }}</title><script>if(localStorage.getItem('monitoring-agent-theme')==='dark'){document.documentElement.classList.add('dark')}</script>@vite(['resources/css/app.css','resources/js/app.js'])</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"><x-app-header active="uptime" />
+<main class="mx-auto max-w-screen-2xl px-4 py-7 sm:px-6">
+    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-sm font-medium text-emerald-600">Availability</p><h1 class="text-3xl font-semibold tracking-tight">Website Uptime</h1><p class="mt-2 text-sm text-slate-500">HTTP status and SSL certificate checks run every minute.</p></div><div class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"><span class="font-semibold">{{ $monitors->where('is_active', true)->count() }}</span> active monitors</div></div>
+    @if(session('status'))<div class="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>@endif
+    @unless($mailReady)<div class="mt-5 flex flex-col justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center"><span><strong>Email delivery is not configured.</strong> Checks will run, but alert emails may not reach recipients.</span>@if(auth()->user()->is_admin)<a href="{{ route('settings.index') }}#email-delivery" class="font-semibold underline">Configure email</a>@endif</div>@endunless
+
+    <div class="mt-7">
+        <section class="space-y-4">
+            @forelse($monitors as $monitor)
+                @php($sslDays = $monitor->ssl_expires_at ? (int) now()->startOfDay()->diffInDays($monitor->ssl_expires_at->copy()->startOfDay(), false) : null)
+                <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+                    <div class="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                        <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="size-2.5 rounded-full {{ !$monitor->is_active ? 'bg-slate-300' : ($monitor->is_up === true ? 'bg-emerald-500' : ($monitor->is_up === false ? 'bg-red-500' : 'bg-amber-400')) }}"></span><h2 class="truncate text-lg font-semibold">{{ $monitor->name }}</h2><span class="rounded-full px-2.5 py-1 text-xs font-medium {{ !$monitor->is_active ? 'bg-slate-100 text-slate-500 dark:bg-slate-800' : ($monitor->is_up === true ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : ($monitor->is_up === false ? 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300')) }}">{{ !$monitor->is_active ? 'Paused' : ($monitor->is_up === true ? 'Operational' : ($monitor->is_up === false ? 'Unavailable' : 'Pending first check')) }}</span></div><a href="{{ $monitor->url }}" target="_blank" rel="noreferrer" class="mt-1 block truncate text-sm text-slate-500 hover:text-emerald-600">{{ $monitor->url }}</a></div>
+                        @if(auth()->user()->is_admin)<a href="{{ route('settings.index') }}#uptime-monitoring" class="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Manage in Settings</a>@endif
+                    </div>
+                    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><p class="text-xs uppercase tracking-wide text-slate-400">HTTP</p><p class="mt-1 font-semibold">{{ $monitor->last_status_code ? 'HTTP '.$monitor->last_status_code : 'Not checked' }}</p></div>
+                        <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><p class="text-xs uppercase tracking-wide text-slate-400">Response</p><p class="mt-1 font-semibold">{{ $monitor->last_response_ms ? $monitor->last_response_ms.' ms' : '—' }}</p></div>
+                        <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><p class="text-xs uppercase tracking-wide text-slate-400">SSL certificate</p><p class="mt-1 font-semibold {{ $sslDays !== null && $sslDays <= 30 ? 'text-amber-600' : '' }}">@if(!str_starts_with($monitor->url, 'https://'))Not applicable @elseif($sslDays === null)Pending @elseif($sslDays < 0)Expired {{ abs($sslDays) }}d ago @elseif($sslDays === 0)Expires today @else{{ $sslDays }} days left @endif</p></div>
+                        <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><p class="text-xs uppercase tracking-wide text-slate-400">Last checked</p><p class="mt-1 font-semibold">{{ $monitor->last_checked_at?->diffForHumans() ?? 'Pending' }}</p></div>
+                    </div>
+                    @if($monitor->last_error)<p class="mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">{{ Str::limit($monitor->last_error, 300) }}</p>@endif
+                    <p class="mt-4 text-xs text-slate-500">Alerts: {{ $monitor->alert_email }} · SSL reminders: 30, 15, 7, and 0 days</p>
+                </article>
+            @empty
+                <div class="grid min-h-72 place-items-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900"><div><div class="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-50 text-2xl dark:bg-emerald-950">↗</div><h2 class="mt-4 text-lg font-semibold">No websites yet</h2><p class="mt-1 text-sm text-slate-500">An administrator can add the first website under Settings → Uptime Monitors.</p>@if(auth()->user()->is_admin)<a href="{{ route('settings.index') }}#uptime-monitoring" class="mt-4 inline-block font-semibold text-emerald-600">Open Settings</a>@endif</div></div>
+            @endforelse
+        </section>
+    </div>
+</main></body></html>

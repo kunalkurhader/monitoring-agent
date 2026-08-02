@@ -7,6 +7,8 @@ import com.kunalkurhade.agent.collectors.ProcessStatsCollector;
 import com.kunalkurhade.agent.collectors.DiskStatsCollector;
 import com.kunalkurhade.agent.model.ProcessStats;
 import com.kunalkurhade.agent.config.AgentConfig;
+import com.kunalkurhade.agent.collectors.LogFileCollector;
+import com.kunalkurhade.agent.model.LogFileChunk;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -18,6 +20,7 @@ public class MonitorScheduler {
     public static void start(AgentConfig config) {
 
         ApiClient apiClient = new ApiClient(config);
+        LogFileCollector logCollector = new LogFileCollector();
 
         ScheduledExecutorService scheduler =
                 Executors.newSingleThreadScheduledExecutor();
@@ -40,12 +43,22 @@ public class MonitorScheduler {
                 e.printStackTrace();
             }
 
+            if (!config.logFiles.isEmpty()) {
+                try {
+                    List<LogFileChunk> chunks = logCollector.collect(config.logFiles);
+                    apiClient.sendLogChunks(chunks);
+                    logCollector.commit(chunks);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
         }, 0, config.intervalSeconds, TimeUnit.SECONDS);
 
         System.out.println(
             "Monitoring started every " + config.intervalSeconds
                 + " seconds for " + config.hostname
-                + "; CPU, RAM, processes, and disk usage use the same interval"
+                + "; CPU, RAM, processes, disk usage, and " + config.logFiles.size() + " configured log files use the same interval"
         );
     }
 }

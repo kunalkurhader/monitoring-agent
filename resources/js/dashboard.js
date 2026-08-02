@@ -11,6 +11,8 @@ if (dashboard && document.getElementById('agent-select')) {
     let storageTimer;
     let selectedProcessIndex = null;
     let selectedStorageIndex = null;
+    let selectedLogFile = null;
+    let logPage = 1;
 
     const bytes = (value) => {
         if (!value) return '0 B';
@@ -37,6 +39,7 @@ if (dashboard && document.getElementById('agent-select')) {
         panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.dashboardPanel !== name));
         if (name === 'processes' && latestSeries.length) loadProcessesAt(selectedProcessIndex ?? latestSeries.length - 1);
         if (name === 'storage' && latestSeries.length) loadStorageAt(selectedStorageIndex ?? latestSeries.length - 1);
+        if (name === 'logs') loadLogs();
     };
     tabs.forEach((tab) => tab.addEventListener('click', () => selectTab(tab.dataset.dashboardTab)));
 
@@ -189,6 +192,37 @@ if (dashboard && document.getElementById('agent-select')) {
         }
     };
 
+    const localDateTime = (date) => {
+        const offset = date.getTimezoneOffset();
+        return new Date(date.getTime() - (offset * 60000)).toISOString().slice(0, 16);
+    };
+
+    const loadLogs = async () => {
+        const query = new URLSearchParams({
+            agent_id: agentSelect.value,
+            from: document.getElementById('log-from').value,
+            to: document.getElementById('log-to').value,
+            page: logPage,
+        });
+        if (selectedLogFile) query.set('file_id', selectedLogFile);
+        try {
+            const response = await fetch(`${dashboard.dataset.logsEndpoint}?${query}`, {headers: {'Accept': 'application/json'}});
+            if (!response.ok) throw new Error(`Log history API returned HTTP ${response.status}`);
+            const payload = await response.json();
+            selectedLogFile = payload.selected_file_id ? String(payload.selected_file_id) : null;
+            document.getElementById('log-file-count').textContent = `${payload.files.length} files`;
+            document.getElementById('log-file-select').innerHTML = payload.files.map((file) => `<option value="${file.id}" ${String(file.id) === selectedLogFile ? 'selected' : ''}>${escape(file.name)} · ${escape(file.path)}</option>`).join('') || '<option value="">No synchronized files</option>';
+            document.getElementById('log-file-list').innerHTML = payload.files.map((file) => `<button type="button" data-log-file="${file.id}" class="w-full rounded-lg border p-3 text-left ${String(file.id) === selectedLogFile ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-slate-800'}"><span class="block font-medium">${escape(file.name)}</span><span class="mt-1 block break-all text-xs text-slate-500">${escape(file.path)}</span><span class="mt-2 block text-xs ${file.status === 'ready' ? 'text-emerald-600' : file.status === 'unreadable' ? 'text-red-500' : 'text-amber-500'}">${escape(file.status)} · ${bytes(file.last_offset)}</span></button>`).join('') || '<p class="text-sm text-slate-500">No log paths were configured during installation.</p>';
+            const selected = payload.files.find((file) => String(file.id) === selectedLogFile);
+            document.getElementById('log-viewer-title').textContent = selected ? selected.name : 'Log content';
+            document.getElementById('log-result-count').textContent = `${payload.pagination.total} chunks`;
+            document.getElementById('log-content').innerHTML = payload.chunks.map((chunk) => `<article><div class="mb-1 flex justify-between gap-3 text-[10px] text-slate-500"><span>Bytes ${chunk.start_offset}–${chunk.end_offset}</span><time>${new Date(chunk.captured_at).toLocaleString()}</time></div><pre class="whitespace-pre-wrap break-words">${escape(chunk.content)}</pre></article>`).join('') || '<p class="text-slate-400">No log content was captured in this date and time range.</p>';
+            document.getElementById('log-pagination').innerHTML = `<button type="button" data-log-page="${payload.pagination.current_page - 1}" ${payload.pagination.current_page <= 1 ? 'disabled' : ''} class="rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-slate-700">Previous</button><span class="text-xs text-slate-500">Page ${payload.pagination.current_page} of ${payload.pagination.last_page}</span><button type="button" data-log-page="${payload.pagination.current_page + 1}" ${payload.pagination.current_page >= payload.pagination.last_page ? 'disabled' : ''} class="rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-slate-700">Next</button>`;
+        } catch (exception) {
+            document.getElementById('log-content').innerHTML = `<p class="text-red-400">${escape(exception.message)}</p>`;
+        }
+    };
+
     const refresh = async () => {
         requestController?.abort();
         requestController = new AbortController();
@@ -222,10 +256,16 @@ if (dashboard && document.getElementById('agent-select')) {
         if (latestSeries[index]) document.getElementById('historical-storage-time').textContent = new Date(latestSeries[index].time).toLocaleString();
         storageTimer = setTimeout(() => loadStorageAt(index), 200);
     });
-    agentSelect.addEventListener('change', () => { selectedProcessIndex = null; selectedStorageIndex = null; refresh(); });
+    document.getElementById('log-search-form').addEventListener('submit', (event) => { event.preventDefault(); logPage = 1; loadLogs(); });
+    document.getElementById('log-file-select').addEventListener('change', (event) => { selectedLogFile = event.target.value || null; logPage = 1; loadLogs(); });
+    document.getElementById('log-file-list').addEventListener('click', (event) => { const button = event.target.closest('[data-log-file]'); if (button) { selectedLogFile = button.dataset.logFile; logPage = 1; loadLogs(); } });
+    document.getElementById('log-pagination').addEventListener('click', (event) => { const button = event.target.closest('[data-log-page]'); if (button && !button.disabled) { logPage = Number(button.dataset.logPage); loadLogs(); } });
+    document.getElementById('log-from').value = localDateTime(new Date(Date.now() - 86400000));
+    document.getElementById('log-to').value = localDateTime(new Date());
+    agentSelect.addEventListener('change', () => { selectedProcessIndex = null; selectedStorageIndex = null; selectedLogFile = null; logPage = 1; refresh(); });
     rangeSelect.addEventListener('change', () => { selectedProcessIndex = null; selectedStorageIndex = null; refresh(); });
     window.addEventListener('resize', () => refresh());
-    window.addEventListener('pulsewatch:theme-changed', refresh);
+    window.addEventListener('monitoring-agent:theme-changed', refresh);
     refresh();
     setInterval(refresh, 5000);
 }

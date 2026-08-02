@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Agent;
 use App\Models\BrowserProject;
 use App\Models\User;
+use App\Models\WebsiteMonitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -34,8 +35,9 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($user);
         $this->get(route('dashboard'))->assertOk()
-            ->assertSee('Combined health summary for Server Agents and Browser Agents')
+            ->assertSee('Combined health summary for servers, websites, and browser applications')
             ->assertSee('Server Monitoring')
+            ->assertSee('Website Uptime')
             ->assertSee('Browser Monitoring')
             ->assertSee('Settings')
             ->assertSee(route('settings.index'));
@@ -117,6 +119,25 @@ class DashboardTest extends TestCase
             ->assertJsonPath('disks.0.used_bytes', 750);
     }
 
+    public function test_synchronized_logs_can_be_searched_by_file_and_date_time(): void
+    {
+        $user = User::factory()->create();
+        $agent = Agent::query()->create(['id' => 'f7ebc999-12e0-4d91-8e2b-d42b4166d0f2', 'hostname' => 'logs-01']);
+        $fileId = DB::table('agent_log_files')->insertGetId([
+            'agent_id' => $agent->id, 'path_hash' => hash('sha256', '/var/log/app.log'), 'path' => '/var/log/app.log',
+            'name' => 'app.log', 'last_offset' => 50, 'status' => 'ready', 'last_seen_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('agent_log_chunks')->insert([
+            ['agent_log_file_id' => $fileId, 'start_offset' => 0, 'end_offset' => 20, 'line_count' => 1, 'content' => 'old log entry', 'captured_at' => now()->subDays(2), 'created_at' => now(), 'updated_at' => now()],
+            ['agent_log_file_id' => $fileId, 'start_offset' => 20, 'end_offset' => 50, 'line_count' => 1, 'content' => 'current searchable error', 'captured_at' => now()->subHour(), 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $this->actingAs($user)->getJson(route('monitors.logs', [
+            'agent_id' => $agent->id, 'file_id' => $fileId, 'from' => now()->subHours(2)->toIso8601String(), 'to' => now()->toIso8601String(),
+        ]))->assertOk()->assertJsonPath('files.0.path', '/var/log/app.log')
+            ->assertJsonPath('chunks.0.content', 'current searchable error')->assertJsonPath('pagination.total', 1);
+    }
+
     public function test_live_monitor_handles_registered_agent_without_samples(): void
     {
         $user = User::factory()->create();
@@ -160,5 +181,28 @@ class DashboardTest extends TestCase
             ->assertJsonPath('browser_summary.errors', 2)
             ->assertJsonPath('browser_monitors.0.status', 'error')
             ->assertJsonPath('browser_monitors.0.average_load', 1200);
+    }
+
+    public function test_fleet_dashboard_includes_website_uptime_summary(): void
+    {
+        $user = User::factory()->create();
+        WebsiteMonitor::query()->create([
+            'name' => 'Healthy website', 'url' => 'https://healthy.example.com', 'alert_email' => 'ops@example.com',
+            'is_active' => true, 'is_up' => true, 'last_status_code' => 200, 'last_response_ms' => 210,
+            'last_checked_at' => now(), 'ssl_expires_at' => now()->addDays(15),
+        ]);
+        WebsiteMonitor::query()->create([
+            'name' => 'Unavailable website', 'url' => 'https://down.example.com', 'alert_email' => 'ops@example.com',
+            'is_active' => true, 'is_up' => false, 'last_status_code' => 503, 'last_checked_at' => now(),
+        ]);
+
+        $this->actingAs($user)->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonPath('uptime_summary.total', 2)
+            ->assertJsonPath('uptime_summary.healthy', 1)
+            ->assertJsonPath('uptime_summary.unavailable', 1)
+            ->assertJsonPath('uptime_summary.ssl_expiring', 1)
+            ->assertJsonPath('uptime_monitors.0.name', 'Healthy website')
+            ->assertJsonPath('uptime_monitors.0.status_code', 200);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\BrandingSetting;
 use App\Models\MailSetting;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +24,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         try {
+            if (Schema::hasTable('branding_settings')) {
+                $branding = BrandingSetting::query()->first();
+                if ($branding) {
+                    config([
+                        'app.name' => $branding->site_name,
+                        'app.branding_logo' => $branding->logo_path ? '/branding/logo?v='.$branding->updated_at?->timestamp : null,
+                    ]);
+                }
+            }
+
             if (! Schema::hasTable('mail_settings')) {
                 return;
             }

@@ -117,4 +117,72 @@ class AgentMetricsController extends Controller
             'disks_received' => count($validated['disks']),
         ], 202);
     }
+
+    public function storeLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid'],
+            'hostname' => ['required', 'string', 'max:255'],
+            'files' => ['present', 'array', 'max:100'],
+            'files.*.path' => ['required', 'string', 'max:4096'],
+            'files.*.file_key' => ['nullable', 'string', 'max:512'],
+            'files.*.status' => ['required', 'in:ready,pending,unreadable'],
+            'files.*.start_offset' => ['required', 'integer', 'min:0'],
+            'files.*.end_offset' => ['required', 'integer', 'gte:files.*.start_offset'],
+            'files.*.content' => ['nullable', 'string', 'max:524288'],
+            'files.*.captured_at' => ['required', 'date'],
+        ]);
+        $receivedAt = now();
+        $chunksAccepted = 0;
+
+        DB::transaction(function () use ($validated, $receivedAt, &$chunksAccepted): void {
+            Agent::query()->updateOrCreate(
+                ['id' => $validated['agent_id']],
+                ['hostname' => $validated['hostname'], 'last_seen_at' => $receivedAt],
+            );
+            foreach ($validated['files'] as $file) {
+                $path = trim($file['path']);
+                $logFile = DB::table('agent_log_files')->where([
+                    'agent_id' => $validated['agent_id'], 'path_hash' => hash('sha256', $path),
+                ])->first();
+                $attributes = [
+                    'path' => $path,
+                    'name' => basename($path),
+                    'file_key' => $file['file_key'] ?? null,
+                    'last_offset' => $file['end_offset'],
+                    'status' => $file['status'],
+                    'last_seen_at' => $receivedAt,
+                    'updated_at' => $receivedAt,
+                ];
+                if ($logFile) {
+                    DB::table('agent_log_files')->where('id', $logFile->id)->update($attributes);
+                    $logFileId = $logFile->id;
+                } else {
+                    $logFileId = DB::table('agent_log_files')->insertGetId([
+                        'agent_id' => $validated['agent_id'],
+                        'path_hash' => hash('sha256', $path),
+                        ...$attributes,
+                        'created_at' => $receivedAt,
+                    ]);
+                }
+
+                if (($file['content'] ?? '') === '' || $file['end_offset'] <= $file['start_offset']) {
+                    continue;
+                }
+                $inserted = DB::table('agent_log_chunks')->insertOrIgnore([
+                    'agent_log_file_id' => $logFileId,
+                    'start_offset' => $file['start_offset'],
+                    'end_offset' => $file['end_offset'],
+                    'line_count' => substr_count($file['content'], "\n") + 1,
+                    'content' => $file['content'],
+                    'captured_at' => $file['captured_at'],
+                    'created_at' => $receivedAt,
+                    'updated_at' => $receivedAt,
+                ]);
+                $chunksAccepted += $inserted;
+            }
+        });
+
+        return response()->json(['status' => 'accepted', 'files_received' => count($validated['files']), 'chunks_accepted' => $chunksAccepted], 202);
+    }
 }
