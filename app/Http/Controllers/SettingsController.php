@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BrandingSetting;
 use App\Models\BrowserProject;
+use App\Models\DataRetentionSetting;
 use App\Models\MailSetting;
 use App\Models\WebsiteMonitor;
 use App\Support\EnvironmentFile;
@@ -31,6 +32,7 @@ class SettingsController extends Controller
             'browserProjects' => BrowserProject::query()->orderBy('name')->get(),
             'brandingSetting' => BrandingSetting::query()->first(),
             'mailSetting' => MailSetting::query()->first(),
+            'retentionSetting' => DataRetentionSetting::query()->firstOrCreate([], ['retention_days' => 30]),
             'websiteMonitors' => WebsiteMonitor::query()->latest()->get(),
         ]);
     }
@@ -87,6 +89,19 @@ class SettingsController extends Controller
         $setting ? $setting->update($validated) : MailSetting::query()->create($validated);
 
         return redirect()->to(route('settings.index').'#email-delivery')->with('status', 'Email delivery settings saved.');
+    }
+
+    public function retention(Request $request): RedirectResponse
+    {
+        $validated = $request->validateWithBag('retention', [
+            'retention_days' => ['required', 'integer', 'min:1', 'max:3650'],
+        ]);
+
+        DataRetentionSetting::query()->firstOrCreate([], ['retention_days' => 30])
+            ->update(['retention_days' => $validated['retention_days']]);
+
+        return redirect()->to(route('settings.index').'#data-retention')
+            ->with('status', 'Data retention policy updated.');
     }
 
     public function factoryReset(Request $request): RedirectResponse
@@ -159,6 +174,7 @@ class SettingsController extends Controller
     private function eraseApplicationData(): void
     {
         $tables = [
+            'data_retention_settings',
             'agent_build_artifacts',
             'website_monitor_alerts',
             'website_monitors',

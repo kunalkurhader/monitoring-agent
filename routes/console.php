@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('monitors:check')->everyMinute()->withoutOverlapping();
 Schedule::command('agents:cleanup-builds')->everyMinute()->withoutOverlapping();
+Schedule::command('data:prune')->hourly()->withoutOverlapping();

@@ -58,6 +58,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/mail', [SettingsController::class, 'mail'])->name('settings.mail.update');
         Route::patch('/settings/branding', [SettingsController::class, 'branding'])->name('settings.branding.update');
+        Route::patch('/settings/retention', [SettingsController::class, 'retention'])->name('settings.retention.update');
         Route::delete('/settings/factory-reset', [SettingsController::class, 'factoryReset'])
             ->middleware('throttle:3,1')
             ->name('settings.factory-reset');
