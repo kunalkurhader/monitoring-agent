@@ -11,9 +11,107 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+@keyframes page-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes header-enter {
+    from { opacity: 0; transform: translateY(-100%); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes surface-enter {
+    from { opacity: 0; transform: translateY(12px) scale(.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes row-enter {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes menu-enter {
+    from { opacity: 0; transform: translateY(-8px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes soft-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(16 185 129 / 0); }
+    50% { box-shadow: 0 0 0 5px rgb(16 185 129 / .1); }
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        transition: background-color 240ms ease, color 240ms ease;
+    }
+
+    body > main,
+    body > .relative > main {
+        animation: page-enter 420ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    body > header {
+        animation: header-enter 380ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    button,
+    a,
+    summary,
+    input,
+    select,
+    textarea {
+        transition-duration: 180ms;
+        transition-timing-function: cubic-bezier(.22, 1, .36, 1);
+    }
+
+    button:not(:disabled),
+    summary,
+    a[class*="rounded"] {
+        transform: translateZ(0);
+    }
+
+    button:not(:disabled):active,
+    summary:active,
+    a[class*="rounded"]:active {
+        transform: scale(.975);
+    }
+
+    tbody tr {
+        animation: row-enter 300ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    tbody tr:nth-child(2) { animation-delay: 25ms; }
+    tbody tr:nth-child(3) { animation-delay: 50ms; }
+    tbody tr:nth-child(4) { animation-delay: 75ms; }
+    tbody tr:nth-child(5) { animation-delay: 100ms; }
+    tbody tr:nth-child(n+6) { animation-delay: 125ms; }
+
+    details[open] > :not(summary) {
+        animation: menu-enter 180ms cubic-bezier(.22, 1, .36, 1) both;
+        transform-origin: top right;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+
+        *, *::before, *::after {
+            animation-duration: .01ms !important;
+            animation-delay: 0ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: .01ms !important;
+        }
+    }
+}
+
 @layer components {
     .setup-input {
-        @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-600;
+        @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:-translate-y-px focus:border-emerald-500 focus:shadow-lg focus:shadow-emerald-500/5 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:placeholder:text-slate-600;
     }
 
     .setup-label {
@@ -21,7 +119,8 @@
     }
 
     .metric-card {
-        @apply rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900;
+        @apply rounded-xl border border-slate-200 bg-white p-4 transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl hover:shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-900 dark:hover:shadow-black/20;
+        animation: surface-enter 440ms cubic-bezier(.22, 1, .36, 1) both;
     }
 
     .metric-card p {
@@ -37,7 +136,8 @@
     }
 
     .chart-panel {
-        @apply rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900;
+        @apply rounded-xl border border-slate-200 bg-white p-4 transition-[transform,box-shadow,border-color] duration-300 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:shadow-black/20;
+        animation: surface-enter 440ms cubic-bezier(.22, 1, .36, 1) both;
     }
 
     .panel-heading {
@@ -51,4 +151,29 @@
     .panel-heading span {
         @apply text-xs text-slate-500;
     }
+
+    .motion-enter {
+        animation: surface-enter 320ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    .mobile-menu-enter {
+        animation: menu-enter 220ms cubic-bezier(.22, 1, .36, 1) both;
+        transform-origin: top center;
+    }
+
+    .activity-pulse {
+        animation: soft-pulse 1.8s ease-in-out infinite;
+    }
+
+    .metric-card:nth-child(2),
+    .chart-panel:nth-child(2) { animation-delay: 45ms; }
+
+    .metric-card:nth-child(3),
+    .chart-panel:nth-child(3) { animation-delay: 90ms; }
+
+    .metric-card:nth-child(4),
+    .chart-panel:nth-child(4) { animation-delay: 135ms; }
+
+    .metric-card:nth-child(n+5),
+    .chart-panel:nth-child(n+5) { animation-delay: 180ms; }
 }

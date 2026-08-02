@@ -33,6 +33,7 @@ const mobileMenuPanel = document.querySelector('[data-mobile-menu-panel]');
 if (mobileMenuToggle && mobileMenuPanel) {
     const setMobileMenu = (open) => {
         mobileMenuPanel.classList.toggle('hidden', !open);
+        mobileMenuPanel.classList.toggle('mobile-menu-enter', open);
         mobileMenuToggle.setAttribute('aria-expanded', String(open));
         mobileMenuToggle.querySelector('[data-mobile-menu-open]')?.classList.toggle('hidden', open);
         mobileMenuToggle.querySelector('[data-mobile-menu-close]')?.classList.toggle('hidden', !open);

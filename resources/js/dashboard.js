@@ -36,7 +36,14 @@ if (dashboard && document.getElementById('agent-select')) {
             tab.classList.toggle('border-transparent', !selected);
             tab.classList.toggle('text-slate-500', !selected);
         });
-        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.dashboardPanel !== name));
+        panels.forEach((panel) => {
+            const active = panel.dataset.dashboardPanel === name;
+            panel.classList.toggle('hidden', !active);
+            if (active) {
+                panel.classList.remove('motion-enter');
+                requestAnimationFrame(() => panel.classList.add('motion-enter'));
+            }
+        });
         if (name === 'processes' && latestSeries.length) loadProcessesAt(selectedProcessIndex ?? latestSeries.length - 1);
         if (name === 'storage' && latestSeries.length) loadStorageAt(selectedStorageIndex ?? latestSeries.length - 1);
         if (name === 'logs') loadLogs();

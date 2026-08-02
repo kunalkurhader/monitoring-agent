@@ -128,6 +128,72 @@ Configure the Apache virtual host so its document root points to the Laravel
 The installation script enables Apache's rewrite module and applies the
 required Laravel directory permissions.
 
+## Production setup checklist
+
+After cloning the repository on a Linux server:
+
+1. Run `sudo ./install.sh` with any optional database flags.
+2. Point the Apache virtual host document root to the repository's `public`
+   directory and allow `.htaccess` overrides.
+3. Confirm the Apache user can write to `storage`, `bootstrap/cache`, and `.env`.
+4. Confirm Laravel's scheduler is registered in cron using the instructions
+   below.
+5. Open the application URL and complete the database and administrator setup
+   wizard.
+6. Sign in and configure branding, SMTP delivery, data retention, uptime
+   monitors, and Server/Browser Agents under **Settings**.
+
+### Configure the production scheduler
+
+A normal `sudo ./install.sh` run creates this system cron file automatically:
+
+```text
+/etc/cron.d/monitoring-agent-scheduler
+```
+
+Confirm it exists:
+
+```bash
+sudo test -f /etc/cron.d/monitoring-agent-scheduler && echo "Scheduler installed"
+```
+
+If dependencies were installed manually, `--skip-build` was used, or the cron
+file is missing, add Laravel's scheduler to the application owner's crontab.
+Replace `/var/www/monitoring-agent` and `/usr/bin/php` with the real repository
+and PHP paths:
+
+```bash
+sudo -u deploy crontab -e
+```
+
+Add exactly one entry:
+
+```cron
+* * * * * cd /var/www/monitoring-agent && /usr/bin/php artisan schedule:run >> /dev/null 2>&1
+```
+
+Find the installed PHP path with `command -v php`. The cron user must be able
+to read the application and write to `storage` and `bootstrap/cache`. Do not
+add multiple scheduler entries for the same installation, because that can
+start duplicate checks.
+
+Verify Laravel sees the scheduled commands:
+
+```bash
+cd /var/www/monitoring-agent
+sudo -u deploy /usr/bin/php artisan schedule:list
+sudo -u deploy /usr/bin/php artisan schedule:run
+```
+
+On Debian/Ubuntu, the cron service is normally named `cron`; on RHEL, Fedora,
+Rocky Linux, AlmaLinux, and Amazon Linux it is normally `crond`:
+
+```bash
+sudo systemctl status cron
+# or
+sudo systemctl status crond
+```
+
 ## Web setup wizard
 
 Open the application base URL after the Linux installation. Monitoring Agent will
@@ -522,6 +588,8 @@ Then open `http://127.0.0.1:8000`.
 Laravel's scheduler drives background maintenance. The Linux installer creates
 `/etc/cron.d/monitoring-agent-scheduler`; local development requires
 `php artisan schedule:work` in a separate terminal.
+For the full production crontab procedure, see
+[Configure the production scheduler](#configure-the-production-scheduler).
 
 | Command | Frequency | Purpose |
 | --- | --- | --- |

@@ -18,7 +18,14 @@ if (settings) {
             tab.classList.toggle('bg-white', !active);
             tab.classList.toggle('dark:bg-slate-900', !active);
         });
-        panels.forEach((panel) => panel.classList.toggle('hidden', panelName(panel) !== selected));
+        panels.forEach((panel) => {
+            const active = panelName(panel) === selected;
+            panel.classList.toggle('hidden', !active);
+            if (active) {
+                panel.classList.remove('motion-enter');
+                requestAnimationFrame(() => panel.classList.add('motion-enter'));
+            }
+        });
         window.dispatchEvent(new CustomEvent('settings:tab-activated', {detail: selected}));
         if (updateHash) history.replaceState(null, '', `#${selected}`);
     };

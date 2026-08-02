@@ -39,6 +39,7 @@ if (installer && installCommand) {
         status.textContent = 'Building the latest Java agent… This can take a minute.';
         status.className = 'text-sm text-amber-600 dark:text-amber-300';
         document.getElementById('agent-build-countdown').textContent = 'Build in progress — the 10-minute window starts when complete';
+        document.getElementById('agent-build-countdown').classList.remove('activity-pulse');
         link.classList.add('hidden');
         downloadUrl = '';
         expiresAt = null;
@@ -58,6 +59,7 @@ if (installer && installCommand) {
             status.textContent = payload.message;
             status.className = 'text-sm text-emerald-600 dark:text-emerald-300';
             const countdown = document.getElementById('agent-build-countdown');
+            countdown.classList.add('activity-pulse');
             const syncCountdown = () => {
                 const remaining = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 1000));
                 const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
@@ -71,6 +73,7 @@ if (installer && installCommand) {
                     status.textContent = 'This JAR has expired. Build a fresh copy to continue.';
                     status.className = 'text-sm text-amber-600 dark:text-amber-300';
                     countdown.textContent = 'Expired — rebuild required';
+                    countdown.classList.remove('activity-pulse');
                     window.clearInterval(countdownTimer);
                     update();
                 }
@@ -81,6 +84,7 @@ if (installer && installCommand) {
             status.textContent = error.message;
             status.className = 'text-sm text-red-500';
             document.getElementById('agent-build-countdown').textContent = 'Build failed — no temporary command is available';
+            document.getElementById('agent-build-countdown').classList.remove('activity-pulse');
         } finally {
             button.disabled = false;
         }
