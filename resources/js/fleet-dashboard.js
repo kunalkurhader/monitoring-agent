@@ -22,6 +22,14 @@ if (fleet) {
             const issues = payload.monitors.flatMap((monitor) => monitor.issues);
             document.getElementById('fleet-issue-count').textContent = `${issues.length} active`;
             document.getElementById('fleet-issues').innerHTML = issues.map((issue) => `<div class="rounded-lg border p-3 text-sm ${issue.severity === 'error' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'}"><span class="font-medium">${issue.severity === 'error' ? 'Error' : 'Warning'}:</span> ${escape(issue.message)}</div>`).join('') || '<p class="py-6 text-center text-sm text-slate-500">No active warnings or errors.</p>';
+
+            document.getElementById('browser-total').textContent = payload.browser_summary.total;
+            document.getElementById('browser-page-loads').textContent = payload.browser_summary.page_loads;
+            document.getElementById('browser-requests').textContent = payload.browser_summary.requests;
+            document.getElementById('browser-errors').textContent = payload.browser_summary.errors;
+            document.getElementById('browser-empty').classList.toggle('hidden', payload.browser_monitors.length > 0);
+            document.getElementById('browser-table').classList.toggle('hidden', payload.browser_monitors.length === 0);
+            document.getElementById('browser-monitors').innerHTML = payload.browser_monitors.map((monitor) => `<tr><td class="py-3"><a class="font-medium text-emerald-600 hover:underline" href="${fleet.dataset.browserUrl}?project=${encodeURIComponent(monitor.id)}">${escape(monitor.name)}</a><p class="mt-1 text-xs text-slate-500">${escape(monitor.origin)}</p></td><td><span class="rounded-full px-2.5 py-1 text-xs ${colors[monitor.status]}">${monitor.status}</span></td><td class="text-right">${monitor.page_loads}</td><td class="text-right">${monitor.requests}</td><td class="text-right">${monitor.average_load === null ? 'No data' : `${monitor.average_load.toLocaleString()} ms`}</td><td class="text-right ${monitor.errors ? 'font-medium text-red-500' : 'text-emerald-600'}">${monitor.errors}</td><td class="text-right text-slate-500">${monitor.last_seen_at ? new Date(monitor.last_seen_at).toLocaleString() : 'Never'}</td></tr>`).join('');
             document.getElementById('fleet-error').classList.add('hidden');
         } catch (error) {
             document.getElementById('fleet-error').textContent = error.message;

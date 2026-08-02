@@ -5,9 +5,10 @@
         <a href="{{ route('dashboard') }}" class="mr-2 flex items-center gap-2 font-semibold"><span class="grid size-8 place-items-center rounded-lg bg-emerald-400 text-slate-950">P</span>Pulsewatch</a>
         <nav class="flex items-center gap-1" aria-label="Primary navigation">
             <a href="{{ route('dashboard') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'dashboard' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Dashboard</a>
-            <a href="{{ route('monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'monitor' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Live Monitor</a>
+            <a href="{{ route('monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'monitor' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Server Monitoring</a>
+            <a href="{{ route('browser-monitoring.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'browser' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Browser Monitoring</a>
             @if(auth()->user()->is_admin)
-                <a href="{{ route('agents.install') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'install' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Install Agent</a>
+                <a href="{{ route('settings.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $active === 'settings' ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800' }}">Settings</a>
             @endif
         </nav>
         <div class="ml-auto flex items-center gap-2">

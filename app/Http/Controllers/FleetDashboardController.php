@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use App\Models\BrowserProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -42,6 +43,28 @@ class FleetDashboardController extends Controller
                 'issues' => $issues,
             ];
         });
+        $browserMonitors = BrowserProject::query()->where('is_active', true)->orderBy('name')->get()->map(function (BrowserProject $project): array {
+            $events = $project->events()->where('occurred_at', '>=', now()->subDay())->latest('occurred_at')->limit(10000)->get();
+            $pageLoads = $events->whereIn('event_type', ['page_load', 'performance']);
+            $requests = $events->whereIn('event_type', ['ajax', 'htmx']);
+            $javascriptErrors = $events->whereIn('event_type', ['error', 'unhandled_rejection', 'resource_error']);
+            $failedRequests = $requests->filter(fn ($event): bool => ($event->metrics['status'] ?? 0) === 0 || ($event->metrics['status'] ?? 0) >= 400);
+            $averageLoad = $pageLoads->avg(fn ($event) => $event->metrics['load_time'] ?? null);
+            $errorCount = $javascriptErrors->count() + $failedRequests->count();
+            $status = $errorCount > 0 ? 'error' : ($averageLoad !== null && $averageLoad >= 2500 ? 'warning' : ($events->isEmpty() ? 'warning' : 'healthy'));
+
+            return [
+                'id' => $project->id,
+                'name' => $project->name,
+                'origin' => $project->allowed_origin,
+                'status' => $status,
+                'page_loads' => $pageLoads->count(),
+                'requests' => $requests->count(),
+                'errors' => $errorCount,
+                'average_load' => $averageLoad === null ? null : round((float) $averageLoad),
+                'last_seen_at' => $events->first()?->occurred_at?->toIso8601String(),
+            ];
+        });
 
         return response()->json([
             'summary' => [
@@ -51,6 +74,13 @@ class FleetDashboardController extends Controller
                 'errors' => $monitors->where('status', 'error')->count(),
             ],
             'monitors' => $monitors->values(),
+            'browser_summary' => [
+                'total' => $browserMonitors->count(),
+                'page_loads' => $browserMonitors->sum('page_loads'),
+                'requests' => $browserMonitors->sum('requests'),
+                'errors' => $browserMonitors->sum('errors'),
+            ],
+            'browser_monitors' => $browserMonitors->values(),
             'server_time' => now()->toIso8601String(),
         ]);
     }

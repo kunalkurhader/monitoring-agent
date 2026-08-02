@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Agent;
+use App\Models\BrowserProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -33,10 +34,11 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($user);
         $this->get(route('dashboard'))->assertOk()
-            ->assertSee('Health summary across all monitoring agents')
-            ->assertSee('Live Monitor')
-            ->assertSee('Install Agent')
-            ->assertSee(route('agents.install'));
+            ->assertSee('Combined health summary for Server Agents and Browser Agents')
+            ->assertSee('Server Monitoring')
+            ->assertSee('Browser Monitoring')
+            ->assertSee('Settings')
+            ->assertSee(route('settings.index'));
     }
 
     public function test_admin_can_generate_agent_token_and_member_cannot(): void
@@ -44,7 +46,8 @@ class DashboardTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $member = User::factory()->create(['is_admin' => false]);
 
-        $this->actingAs($admin)->get(route('agents.install'))->assertOk()->assertSee('Generate 64-character token');
+        $this->actingAs($admin)->get(route('agents.install'))->assertRedirect(route('settings.index').'#server-agent');
+        $this->actingAs($admin)->get(route('settings.index'))->assertOk()->assertSee('Generate 64-character token');
         $response = $this->actingAs($admin)->postJson(route('agents.tokens.store'), ['name' => 'Production agents'])
             ->assertCreated();
         $token = $response->json('token');
@@ -57,6 +60,7 @@ class DashboardTest extends TestCase
         $this->assertDatabaseMissing('agent_api_tokens', ['token_hash' => $token]);
 
         $this->actingAs($member)->get(route('agents.install'))->assertForbidden();
+        $this->actingAs($member)->get(route('settings.index'))->assertForbidden();
         $this->actingAs($member)->postJson(route('agents.tokens.store'), ['name' => 'Denied'])->assertForbidden();
     }
 
@@ -133,5 +137,28 @@ class DashboardTest extends TestCase
             ->assertOk()->assertJsonPath('summary.total', 1)
             ->assertJsonPath('summary.errors', 1)
             ->assertJsonPath('monitors.0.status', 'error');
+    }
+
+    public function test_fleet_dashboard_includes_browser_monitoring_summary(): void
+    {
+        $user = User::factory()->create();
+        $project = BrowserProject::query()->create([
+            'name' => 'Customer portal', 'site_url' => 'https://app.example.com', 'allowed_origin' => 'https://app.example.com',
+            'public_key' => 'pw_'.str_repeat('c', 60), 'created_by' => $user->id,
+        ]);
+        $viewId = 'c61b33c0-42de-4e85-9fe9-7bd9c54618a1';
+        DB::table('browser_events')->insert([
+            ['browser_project_id' => $project->id, 'page_view_id' => $viewId, 'event_type' => 'page_load', 'page_url' => 'https://app.example.com/orders', 'message' => 'navigate', 'source' => null, 'metrics' => json_encode(['load_time' => 1200]), 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+            ['browser_project_id' => $project->id, 'page_view_id' => $viewId, 'event_type' => 'ajax', 'page_url' => 'https://app.example.com/orders', 'message' => 'GET', 'source' => 'https://app.example.com/api/orders', 'metrics' => json_encode(['duration' => 300, 'status' => 500]), 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+            ['browser_project_id' => $project->id, 'page_view_id' => $viewId, 'event_type' => 'error', 'page_url' => 'https://app.example.com/orders', 'message' => 'Undefined value', 'source' => null, 'metrics' => null, 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $this->actingAs($user)->getJson(route('dashboard.data'))
+            ->assertOk()->assertJsonPath('browser_summary.total', 1)
+            ->assertJsonPath('browser_summary.page_loads', 1)
+            ->assertJsonPath('browser_summary.requests', 1)
+            ->assertJsonPath('browser_summary.errors', 2)
+            ->assertJsonPath('browser_monitors.0.status', 'error')
+            ->assertJsonPath('browser_monitors.0.average_load', 1200);
     }
 }

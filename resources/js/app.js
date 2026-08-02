@@ -1,6 +1,7 @@
 import './dashboard';
 import './agent-installer';
 import './fleet-dashboard';
+import './settings';
 
 const syncThemeControls = () => {
     const dark = document.documentElement.classList.contains('dark');

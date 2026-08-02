@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Dashboard · Pulsewatch</title>
+    <title>Server Monitoring · Pulsewatch</title>
     <script>
         if (localStorage.getItem('pulsewatch-theme') === 'dark') {
             document.documentElement.classList.add('dark');
@@ -19,10 +19,10 @@
     <main class="mx-auto min-w-0 max-w-screen-2xl">
 
         <div id="monitor-dashboard" data-endpoint="{{ route('monitors.data') }}" data-processes-endpoint="{{ route('monitors.processes') }}" data-storage-endpoint="{{ route('monitors.storage') }}" class="p-4 sm:p-6">
-            <div class="mb-4"><h1 class="text-xl font-semibold">Live Monitor</h1><p class="mt-1 text-sm text-slate-500">Detailed high-frequency telemetry for one agent</p></div>
+            <div class="mb-4"><p class="text-sm font-medium text-emerald-600">Infrastructure monitoring</p><h1 class="text-2xl font-semibold">Server Monitoring</h1><p class="mt-1 text-sm text-slate-500">High-frequency CPU, RAM, process, and storage telemetry for one server agent.</p></div>
             @if ($agents->isEmpty())
                 <div class="rounded-xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900"><h2 class="text-xl font-semibold">No agents connected</h2><p class="mt-2 text-slate-500 dark:text-slate-400">Configure and start an agent; it will appear here after its first metrics request.</p></div>
-                @if(auth()->user()->is_admin)<a href="{{ route('agents.install') }}" class="mt-5 inline-block rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white hover:bg-emerald-400">Install your first agent</a>@endif
+                @if(auth()->user()->is_admin)<a href="{{ route('settings.index') }}#server-agent" class="mt-5 inline-block rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white hover:bg-emerald-400">Install Server Agent</a>@endif
             @else
                 <div class="flex flex-wrap items-end justify-between gap-4">
                     <div class="flex flex-wrap gap-3">
