@@ -3,6 +3,8 @@ const dashboard = document.getElementById('monitor-dashboard');
 if (dashboard && document.getElementById('agent-select')) {
     const agentSelect = document.getElementById('agent-select');
     const rangeSelect = document.getElementById('range-select');
+    const requestedAgent = new URLSearchParams(window.location.search).get('agent_id');
+    if (requestedAgent && [...agentSelect.options].some((option) => option.value === requestedAgent)) agentSelect.value = requestedAgent;
     let requestController;
     let latestSeries = [];
     let processTimer;
@@ -89,6 +91,15 @@ if (dashboard && document.getElementById('agent-select')) {
     const render = (payload) => {
         const series = payload.series;
         latestSeries = series;
+        const hasData = series.length > 0;
+        document.getElementById('monitor-no-data').classList.toggle('hidden', hasData);
+        document.getElementById('monitor-telemetry').classList.toggle('hidden', !hasData);
+        document.getElementById('monitor-empty-agent').textContent = payload.agent.hostname;
+        if (!hasData) {
+            document.getElementById('connection-status').textContent = 'No samples in selected range';
+            document.getElementById('status-dot').className = 'size-2 rounded-full bg-amber-400';
+            return;
+        }
         const peak = series.length ? Math.max(...series.map((point) => point.cpu)) : 0;
         document.getElementById('cpu-now').textContent = `${payload.current.cpu.toFixed(1)}%`;
         document.getElementById('cpu-peak').textContent = `Peak ${peak.toFixed(1)}% in range`;

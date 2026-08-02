@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" class="scheme-light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>Dashboard · Pulsewatch</title><script>if(localStorage.getItem('pulsewatch-theme')==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.replace('scheme-light','scheme-dark')}</script>@vite(['resources/css/app.css','resources/js/app.js'])</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<x-app-header active="dashboard" />
+<main id="fleet-dashboard" data-endpoint="{{ route('dashboard.data') }}" data-monitor-url="{{ route('monitors.index') }}" class="mx-auto max-w-screen-2xl px-4 py-5 sm:px-6">
+    <div class="flex flex-wrap items-end justify-between gap-3"><div><h1 class="text-xl font-semibold">Dashboard</h1><p class="mt-1 text-sm text-slate-500">Health summary across all monitoring agents</p></div><p id="fleet-updated" class="text-xs text-slate-500">Loading…</p></div>
+    <section class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><div class="metric-card"><p>Total monitors</p><strong id="fleet-total">—</strong><span>Registered agents</span></div><div class="metric-card"><p>Healthy</p><strong id="fleet-healthy" class="!text-emerald-600">—</strong><span>Reporting normally</span></div><div class="metric-card"><p>Warnings</p><strong id="fleet-warnings" class="!text-amber-500">—</strong><span>Needs attention</span></div><div class="metric-card"><p>Errors</p><strong id="fleet-errors" class="!text-red-500">—</strong><span>Critical or offline</span></div></section>
+    <div id="fleet-empty" class="mt-5 hidden rounded-xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900"><h2 class="text-lg font-semibold">No monitors found</h2><p class="mt-2 text-sm text-slate-500">Install an agent to begin receiving infrastructure health data.</p>@if(auth()->user()->is_admin)<a href="{{ route('agents.install') }}" class="mt-4 inline-block rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white">Install Agent</a>@endif</div>
+    <div id="fleet-content" class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,.6fr)]">
+        <section class="chart-panel overflow-hidden"><div class="panel-heading"><h2>All monitors</h2><span>Current utilization</span></div><div class="overflow-x-auto"><table class="w-full min-w-[720px] text-left text-sm"><thead class="text-xs text-slate-500"><tr><th class="py-2">Monitor</th><th>Status</th><th class="text-right">CPU</th><th class="text-right">RAM</th><th class="text-right">Disk</th><th class="text-right">Last seen</th></tr></thead><tbody id="fleet-monitors" class="divide-y divide-slate-200 dark:divide-slate-800"></tbody></table></div></section>
+        <section class="chart-panel"><div class="panel-heading"><h2>Warnings and errors</h2><span id="fleet-issue-count">0 active</span></div><div id="fleet-issues" class="space-y-3"></div></section>
+    </div>
+    <p id="fleet-error" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200"></p>
+</main>
+</body></html>

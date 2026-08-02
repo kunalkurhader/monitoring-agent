@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentApiToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,6 +27,20 @@ class AgentMetricsApiTest extends TestCase
             ->assertUnauthorized();
 
         $this->withToken(self::TOKEN)
+            ->getJson('/api/v1/agent/ping')
+            ->assertOk()
+            ->assertJson(['status' => 'ok']);
+    }
+
+    public function test_agent_api_accepts_a_generated_database_token(): void
+    {
+        $plainTextToken = str_repeat('a', 64);
+        AgentApiToken::query()->create([
+            'name' => 'Test token',
+            'token_hash' => hash('sha256', $plainTextToken),
+        ]);
+
+        $this->withToken($plainTextToken)
             ->getJson('/api/v1/agent/ping')
             ->assertOk()
             ->assertJson(['status' => 'ok']);

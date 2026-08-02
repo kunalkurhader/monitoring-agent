@@ -6,8 +6,9 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-<div class="mx-auto max-w-6xl px-5 py-8">
-    <header class="flex flex-wrap items-center justify-between gap-4"><div><a href="{{ route('dashboard') }}" class="text-sm text-emerald-600 hover:underline">← Dashboard</a><h1 class="mt-2 text-3xl font-semibold">Team</h1><p class="mt-1 text-sm text-slate-500">Everyone can see accepted members and pending invitations.</p></div><button type="button" data-theme-toggle class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"><span data-theme-light>☾ Dark</span><span data-theme-dark class="hidden">☀ Light</span></button></header>
+<x-app-header />
+<main class="mx-auto max-w-6xl px-5 py-6">
+    <div><h1 class="text-xl font-semibold">Team</h1><p class="mt-1 text-sm text-slate-500">Everyone can see accepted members and pending invitations.</p></div>
 
     @if(session('status'))<div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>@endif
     @if($errors->any())<div class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{{ $errors->first() }}</div>@endif
@@ -41,4 +42,4 @@
         @forelse($invitations as $invitation)<tr><td class="py-3 font-medium">{{ $invitation->email }}</td><td>{{ $invitation->inviter?->name ?? 'Former member' }}</td><td>{{ ucfirst($invitation->role) }}</td><td class="text-slate-500">{{ $invitation->created_at->diffForHumans() }}</td><td class="text-right"><span class="rounded-full px-2.5 py-1 text-xs {{ $invitation->expires_at->isPast() ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200' }}">{{ $invitation->expires_at->isPast() ? 'Expired' : 'Pending' }}</span></td></tr>@empty<tr><td colspan="5" class="py-8 text-center text-slate-500">No pending invitations.</td></tr>@endforelse
         </tbody></table></div>
     </section>
-</div></body></html>
+</main></body></html>

@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\AgentDownloadController;
+use App\Http\Controllers\AgentInstallController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FleetDashboardController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SetupController;
@@ -14,6 +17,8 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('setup.database');
 });
+
+Route::get('/downloads/agent.jar', AgentDownloadController::class)->name('agent.download');
 
 Route::middleware(EnsureApplicationIsNotInstalled::class)->group(function (): void {
     Route::get('/setup', [SetupController::class, 'database'])->name('setup.database');
@@ -32,14 +37,18 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware('auth')->group(function (): void {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
-    Route::get('/dashboard/processes', [DashboardController::class, 'processes'])->name('dashboard.processes');
-    Route::get('/dashboard/storage', [DashboardController::class, 'storage'])->name('dashboard.storage');
+    Route::get('/dashboard', [FleetDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/data', [FleetDashboardController::class, 'data'])->name('dashboard.data');
+    Route::get('/monitors', [DashboardController::class, 'index'])->name('monitors.index');
+    Route::get('/monitors/data', [DashboardController::class, 'data'])->name('monitors.data');
+    Route::get('/monitors/processes', [DashboardController::class, 'processes'])->name('monitors.processes');
+    Route::get('/monitors/storage', [DashboardController::class, 'storage'])->name('monitors.storage');
     Route::get('/team', [TeamController::class, 'index'])->name('team.index');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::middleware('admin')->group(function (): void {
+        Route::get('/agents/install', [AgentInstallController::class, 'index'])->name('agents.install');
+        Route::post('/agents/tokens', [AgentInstallController::class, 'token'])->name('agents.tokens.store');
         Route::post('/team/invitations', [TeamController::class, 'invite'])->name('team.invitations.store');
         Route::patch('/team/users/{user}/role', [TeamController::class, 'updateRole'])->name('team.users.role');
     });

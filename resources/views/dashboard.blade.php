@@ -14,38 +14,15 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-<div class="min-h-screen lg:grid lg:grid-cols-[220px_1fr]">
-    <aside class="border-b border-slate-200 bg-white px-5 py-5 dark:border-slate-800 dark:bg-slate-900/80 lg:border-b-0 lg:border-r">
-        <div class="flex items-center gap-3 text-lg font-semibold"><span class="grid size-9 place-items-center rounded-xl bg-emerald-400 text-slate-950">P</span>Pulsewatch</div>
-        <nav class="mt-8 flex gap-2 lg:grid">
-            <a class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-slate-800 dark:text-white" href="{{ route('dashboard') }}">Live monitor</a>
-            <a class="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" href="{{ route('team.index') }}">Team</a>
-        </nav>
-    </aside>
+<div class="min-h-screen">
+    <x-app-header active="monitor" />
+    <main class="mx-auto min-w-0 max-w-screen-2xl">
 
-    <main class="min-w-0">
-        <header class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white/80 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/60">
-            <div>
-                <h1 class="text-lg font-semibold">Infrastructure overview</h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400">High-frequency telemetry without page reloads</p>
-            </div>
-            <div class="flex items-center gap-2">
-                <button type="button" data-theme-toggle class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Switch color theme"><span data-theme-light>☾ Dark</span><span data-theme-dark class="hidden">☀ Light</span></button>
-                <details class="group relative">
-                    <summary class="cursor-pointer list-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Account <span class="ml-1 inline-block transition group-open:rotate-180">⌄</span></summary>
-                    <div class="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                        <div class="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><p class="truncate text-sm font-medium">{{ auth()->user()->name }}</p><p class="truncate text-xs text-slate-500">{{ auth()->user()->email }}</p></div>
-                        <a href="{{ route('profile.edit') }}" class="block px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Profile</a>
-                        <a href="{{ route('team.index') }}" class="block px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Team</a>
-                        <form method="POST" action="{{ route('logout') }}">@csrf<button class="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950">Sign out</button></form>
-                    </div>
-                </details>
-            </div>
-        </header>
-
-        <div id="monitor-dashboard" data-endpoint="{{ route('dashboard.data') }}" data-processes-endpoint="{{ route('dashboard.processes') }}" data-storage-endpoint="{{ route('dashboard.storage') }}" class="p-4 sm:p-6">
+        <div id="monitor-dashboard" data-endpoint="{{ route('monitors.data') }}" data-processes-endpoint="{{ route('monitors.processes') }}" data-storage-endpoint="{{ route('monitors.storage') }}" class="p-4 sm:p-6">
+            <div class="mb-4"><h1 class="text-xl font-semibold">Live Monitor</h1><p class="mt-1 text-sm text-slate-500">Detailed high-frequency telemetry for one agent</p></div>
             @if ($agents->isEmpty())
                 <div class="rounded-xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900"><h2 class="text-xl font-semibold">No agents connected</h2><p class="mt-2 text-slate-500 dark:text-slate-400">Configure and start an agent; it will appear here after its first metrics request.</p></div>
+                @if(auth()->user()->is_admin)<a href="{{ route('agents.install') }}" class="mt-5 inline-block rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white hover:bg-emerald-400">Install your first agent</a>@endif
             @else
                 <div class="flex flex-wrap items-end justify-between gap-4">
                     <div class="flex flex-wrap gap-3">
@@ -63,6 +40,8 @@
                     <div class="flex items-center gap-2 pb-2 text-xs text-slate-400"><span id="status-dot" class="size-2 rounded-full bg-slate-600"></span><span id="connection-status">Loading telemetry…</span></div>
                 </div>
 
+                <div id="monitor-no-data" class="mt-5 hidden rounded-xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900"><h2 class="text-lg font-semibold">No monitoring data found</h2><p class="mt-2 text-sm text-slate-500"><span id="monitor-empty-agent">This agent</span> is registered but has not submitted system samples in the selected time range. Confirm that its service is running and token is valid.</p></div>
+                <div id="monitor-telemetry" class="hidden">
                 <nav class="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800" aria-label="Dashboard sections">
                     <button type="button" data-dashboard-tab="overview" class="border-b-2 border-emerald-500 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">Overview</button>
                     <button type="button" data-dashboard-tab="processes" class="border-b-2 border-transparent px-4 py-3 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">Processes</button>
@@ -118,6 +97,7 @@
                         <div id="storage-list" class="grid gap-4 md:grid-cols-2"></div>
                     </div>
                 </section>
+                </div>
 
                 <p id="dashboard-error" class="mt-4 hidden rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"></p>
             @endif

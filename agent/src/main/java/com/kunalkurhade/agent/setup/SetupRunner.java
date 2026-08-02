@@ -2,7 +2,6 @@ package com.kunalkurhade.agent.setup;
 
 import com.kunalkurhade.agent.api.ApiClient;
 import com.kunalkurhade.agent.config.ConfigWriter;
-import com.kunalkurhade.agent.scheduler.MonitorScheduler;
 import com.kunalkurhade.agent.config.AgentConfig;
 import java.net.InetAddress;
 import java.util.UUID;
@@ -29,8 +28,6 @@ public class SetupRunner {
             ConfigWriter.save(
                     apiUrl, apiToken, agentId, resolvedHostname, interval, filterRaw
             );
-
-            MonitorScheduler.start(config);
 
             System.out.println("✅ Setup completed successfully");
 
