@@ -3,22 +3,37 @@
 namespace Tests\Feature;
 
 use App\Models\Agent;
+use App\Models\AgentBuildArtifact;
 use App\Models\BrowserProject;
 use App\Models\User;
 use App\Models\WebsiteMonitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_agent_jar_is_publicly_downloadable(): void
+    public function test_temporary_agent_jar_is_downloadable_with_an_unexpired_token(): void
     {
-        $this->get(route('agent.download'))
+        Storage::fake('local');
+        $token = str_repeat('a', 64);
+        $path = 'agent-builds/test.jar';
+        Storage::disk('local')->put($path, 'temporary jar');
+        AgentBuildArtifact::query()->create([
+            'token_hash' => hash('sha256', $token),
+            'path' => $path,
+            'size_bytes' => 13,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        $this->get(route('agent.download', $token))
             ->assertOk()
             ->assertDownload('agent.jar');
+
+        $this->get(route('agent.download', str_repeat('b', 64)))->assertNotFound();
     }
 
     public function test_guest_is_redirected_to_login(): void

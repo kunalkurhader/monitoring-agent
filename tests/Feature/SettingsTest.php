@@ -2,18 +2,59 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentBuildArtifact;
 use App\Models\BrandingSetting;
 use App\Models\MailSetting;
 use App\Models\User;
+use App\Services\AgentJarBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class SettingsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_admin_can_request_a_temporary_agent_build(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $artifact = new AgentBuildArtifact([
+            'path' => 'agent-builds/fresh.jar',
+            'size_bytes' => 1024,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+        $builder = Mockery::mock(AgentJarBuilder::class);
+        $builder->shouldReceive('build')->once()->andReturn([
+            'artifact' => $artifact,
+            'token' => str_repeat('x', 64),
+        ]);
+        $this->app->instance(AgentJarBuilder::class, $builder);
+
+        $this->actingAs($admin)->postJson(route('agents.builds.store'))
+            ->assertCreated()
+            ->assertJsonPath('size_bytes', 1024)
+            ->assertJsonPath('message', 'Fresh agent.jar built. This download expires in 10 minutes.');
+    }
+
+    public function test_expired_agent_builds_are_deleted(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('agent-builds/expired.jar', 'expired');
+        AgentBuildArtifact::query()->create([
+            'token_hash' => hash('sha256', 'expired-token'),
+            'path' => 'agent-builds/expired.jar',
+            'size_bytes' => 7,
+            'expires_at' => now()->subSecond(),
+        ]);
+
+        $this->artisan('agents:cleanup-builds')->assertSuccessful();
+
+        Storage::disk('local')->assertMissing('agent-builds/expired.jar');
+        $this->assertDatabaseCount('agent_build_artifacts', 0);
+    }
 
     public function test_admin_can_customize_site_name_and_logo(): void
     {

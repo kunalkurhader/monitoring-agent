@@ -19,6 +19,7 @@ if (settings) {
             tab.classList.toggle('dark:bg-slate-900', !active);
         });
         panels.forEach((panel) => panel.classList.toggle('hidden', panelName(panel) !== selected));
+        window.dispatchEvent(new CustomEvent('settings:tab-activated', {detail: selected}));
         if (updateHash) history.replaceState(null, '', `#${selected}`);
     };
 

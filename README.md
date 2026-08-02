@@ -92,10 +92,27 @@ Use a specific application owner:
 sudo ./install.sh --app-user deploy
 ```
 
-The installer is designed for Ubuntu and Debian-based Linux distributions.
-During a full build it also installs
+The installer detects the host through `/etc/os-release` and supports these
+Linux families:
+
+- Debian, Ubuntu, Linux Mint, Pop!_OS, and compatible APT derivatives;
+- Red Hat Enterprise Linux 8/9, CentOS Stream, Rocky Linux, AlmaLinux, Oracle
+  Linux, and compatible DNF derivatives;
+- Fedora; and
+- Amazon Linux 2023.
+
+Package names, PHP repositories, Apache service names, filesystem groups,
+Java distributions, database packages, and cron services are selected for the
+detected family. RHEL-compatible systems use Remi when PHP 8.3 is not already
+available. Debian uses the Sury repository when required, Ubuntu uses the
+Ondřej Surý PPA, and Amazon Linux uses its versioned PHP and Corretto packages.
+On RPM systems, `--with-mysql-server` installs the distribution's
+MySQL-compatible MariaDB server. Remote MySQL and Amazon RDS connections still
+use the native PHP MySQL driver.
+
+During a full build the installer also installs
 `/etc/cron.d/monitoring-agent-scheduler`, which invokes Laravel's scheduler
-every minute for website uptime and SSL checks.
+every minute for website uptime, SSL checks, and temporary JAR cleanup.
 
 ## Apache
 
@@ -143,6 +160,7 @@ Laravel migrations manage both application and monitoring tables:
 - `users`
 - `team_invitations`
 - `agent_api_tokens`
+- `agent_build_artifacts`
 - `browser_projects`
 - `browser_events`
 - `mail_settings`
@@ -177,9 +195,23 @@ Build the agent:
 mvn -f agent/pom.xml clean package
 ```
 
-The resulting `agent/target/agent-1.0.0.jar` is exposed publicly as
-`/downloads/agent.jar`. The route returns HTTP 503 until the current artifact
-has been built; it never falls back to an older binary.
+Opening **Settings → Server Agent** requests a fresh Maven build from the
+current Java source. The completed JAR is copied into private temporary storage
+and exposed through a random, unguessable download URL for 10 minutes. The URL
+returns no-store cache headers and stops resolving when it expires. Laravel's
+one-minute scheduler removes expired artifact records and files; the Maven
+output JAR is deleted immediately after the private copy is created.
+The Server Agent interface shows a live minute-and-second countdown, and the
+generated shell command includes both the remaining time and exact expiry. The
+Linux installer receives `--expires-at` and refuses to continue when that
+timestamp has passed.
+
+The build starts when the Server Agent settings tab becomes active. A manual
+**Build fresh agent.jar** action is available for retries and source updates.
+Only one Maven build may run at a time, and build requests are rate-limited to
+three per ten minutes. Only the SHA-256 hash of the temporary download token is
+stored. There is no permanent public JAR URL; both the direct-download control
+and generated installation command remain disabled until a build succeeds.
 
 Configure it after completing the Laravel web setup:
 
@@ -225,11 +257,14 @@ The original `AGENT_API_TOKEN` remains accepted for previously installed agents
 during migration to named tokens.
 
 The generated command downloads public `/install-agent.sh`, which then
-downloads `/downloads/agent.jar`, validates and saves configuration, creates a
-unique agent UUID, installs `/etc/systemd/system/monitoring-agent.service`, and
-starts the service. The installer targets systemd-based Linux, runs the agent
-as root so it can inspect system processes, and requires `curl`, Java 17 or
-later, and `systemctl`.
+checks the embedded expiry, downloads the current temporary JAR, validates and
+saves configuration, creates a unique agent UUID, installs
+`/etc/systemd/system/monitoring-agent.service`, and starts the service. The
+installer targets systemd-based Linux, runs the agent as root so it can inspect
+system processes, and requires `curl`, Java 17 or later, and `systemctl`. If
+Java is missing, it installs an OpenJDK 17 runtime on Debian/Ubuntu, Fedora and
+RHEL-compatible distributions, or Amazon Corretto 17 on Amazon Linux before
+configuring the service.
 
 The setup subcommand now exits after validating and saving configuration. The
 long-running scheduler starts through `agent.jar start` under systemd.
@@ -521,7 +556,7 @@ The action requires the administrator password and the exact confirmation
 phrase `ERASE EVERYTHING`. It permanently removes users, monitoring telemetry,
 registered agents, API tokens, browser monitoring data, synchronized logs,
 website monitors and alert history, invitations, email settings, branding,
-uploaded logos, queued jobs, and cached data. It also clears the configured
+uploaded logos, temporary agent builds, queued jobs, and cached data. It also clears the configured
 database credentials, invalidates the current session, and returns the
 application to the setup wizard. The reset interface keeps the destructive
 action disabled until the administrator password and exact confirmation phrase

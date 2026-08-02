@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('monitors:check')->everyMinute()->withoutOverlapping();
+Schedule::command('agents:cleanup-builds')->everyMinute()->withoutOverlapping();

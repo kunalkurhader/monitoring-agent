@@ -72,6 +72,11 @@ mvn clean package
 ```
 
 ### Steps to install on server
+The generated `/install-agent.sh` supports systemd-based Debian/Ubuntu,
+RHEL/CentOS Stream, Rocky Linux, AlmaLinux, Oracle Linux, Fedora, and Amazon
+Linux. It automatically installs an appropriate Java 17 runtime when Java is
+missing or older than version 17.
+
 Run setup **only once** on a machine.  
 This will:
 - validate API connectivity and credentials

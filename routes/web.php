@@ -22,7 +22,7 @@ Route::get('/', function () {
         : redirect()->route('setup.database');
 });
 
-Route::get('/downloads/agent.jar', AgentDownloadController::class)->name('agent.download');
+Route::get('/downloads/agent/{token}', AgentDownloadController::class)->name('agent.download');
 Route::get('/branding/logo', BrandingLogoController::class)->name('branding.logo');
 
 Route::middleware(EnsureApplicationIsNotInstalled::class)->group(function (): void {
@@ -63,6 +63,9 @@ Route::middleware('auth')->group(function (): void {
             ->name('settings.factory-reset');
         Route::get('/agents/install', fn () => redirect()->to(route('settings.index').'#server-agent'))->name('agents.install');
         Route::post('/agents/tokens', [AgentInstallController::class, 'token'])->name('agents.tokens.store');
+        Route::post('/agents/builds', [AgentInstallController::class, 'build'])
+            ->middleware('throttle:3,10')
+            ->name('agents.builds.store');
         Route::post('/browser-monitoring', [BrowserMonitoringController::class, 'store'])->name('browser-monitoring.store');
         Route::post('/website-monitors', [WebsiteMonitorController::class, 'store'])->name('website-monitors.store');
         Route::get('/website-monitors/{website_monitor}/edit', [WebsiteMonitorController::class, 'edit'])->name('website-monitors.edit');

@@ -131,6 +131,7 @@ class SettingsController extends Controller
             ]);
 
             Storage::disk('local')->deleteDirectory('branding');
+            Storage::disk('local')->deleteDirectory('agent-builds');
             $this->eraseApplicationData();
             Auth::logout();
             File::delete(storage_path('app/installed'));
@@ -158,6 +159,7 @@ class SettingsController extends Controller
     private function eraseApplicationData(): void
     {
         $tables = [
+            'agent_build_artifacts',
             'website_monitor_alerts',
             'website_monitors',
             'agent_log_chunks',

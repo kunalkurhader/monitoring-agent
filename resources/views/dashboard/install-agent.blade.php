@@ -1,4 +1,4 @@
-<div id="agent-installer" data-token-endpoint="{{ route('agents.tokens.store') }}" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+<div id="agent-installer" data-token-endpoint="{{ route('agents.tokens.store') }}" data-build-endpoint="{{ route('agents.builds.store') }}" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
     <div class="chart-panel">
         <div class="panel-heading"><h2>Configure a Linux agent</h2><span>All fields stay in your browser</span></div>
         <div class="space-y-4">
@@ -16,8 +16,9 @@
         </div>
     </div>
     <div class="chart-panel">
-        <div class="panel-heading"><h2>Install command</h2><a href="{{ route('agent.download') }}" class="text-xs text-emerald-600 hover:underline">Download agent.jar directly</a></div>
-        <p class="mb-3 text-sm text-slate-500">Copy this command and paste it into a systemd-based Linux server. It downloads the public JAR, validates the API token, saves a unique agent ID, installs a service, and starts monitoring.</p>
+        <div class="panel-heading"><h2>Install command</h2><span>Temporary build</span></div>
+        <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950"><div class="flex flex-wrap items-center gap-3"><button id="build-agent-jar" type="button" class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700">Build fresh agent.jar</button><a id="download-agent-jar" href="#" class="hidden text-sm font-semibold text-emerald-600 hover:underline">Download agent.jar</a></div><p id="agent-build-status" class="mt-3 text-sm text-slate-500">Opening this tab builds the latest Java source. The private download is deleted after 10 minutes.</p><p id="agent-build-countdown" class="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200">Build required — validity is 10 minutes</p></div>
+        <p class="mb-3 text-sm text-slate-500">Copy this command and paste it into a systemd-based Linux server. It uses the temporary JAR URL, validates the API token, saves a unique agent ID, installs a service, and starts monitoring.</p>
         <textarea id="install-command" readonly rows="11" class="w-full rounded-xl border border-slate-300 bg-slate-950 p-4 font-mono text-xs leading-6 text-emerald-300 dark:border-slate-700"></textarea>
         <div class="mt-3 flex flex-wrap items-center gap-3"><button id="copy-install-command" type="button" disabled class="rounded-xl bg-emerald-500 px-5 py-3 font-medium text-white enabled:hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">Copy command</button><span id="copy-install-status" class="text-sm text-slate-500"></span></div>
         <p class="mt-4 text-xs text-amber-600 dark:text-amber-300">The command contains the API token. Treat it as a secret and clear it from shell history if required.</p>
