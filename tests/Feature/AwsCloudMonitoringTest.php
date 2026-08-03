@@ -60,6 +60,62 @@ class AwsCloudMonitoringTest extends TestCase
             ->assertDontSee('<canvas', false);
     }
 
+    public function test_cloud_listing_shows_basic_metrics_security_context_and_s3_inventory(): void
+    {
+        $user = User::factory()->create();
+        $connection = $this->connection();
+        $instance = $this->createAwsInstance($connection, 'i-listing', 'running');
+        $instance->update(['metadata' => [
+            'private_ip' => '10.0.0.10', 'public_ip' => '203.0.113.20',
+            'security_groups' => [['id' => 'sg-web', 'name' => 'web-public']],
+        ]]);
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:ec2:ap-south-1:123456789012:security-group/sg-web',
+            'resource_id' => 'sg-web', 'name' => 'web-public', 'service' => 'ec2', 'type' => 'security-group',
+            'region' => 'ap-south-1', 'state' => 'active', 'metadata' => ['ingress_rules' => []],
+        ]);
+        AwsMetricSample::query()->create([
+            'aws_resource_id' => $instance->id, 'namespace' => 'AWS/EC2', 'metric_name' => 'CPUUtilization',
+            'unit' => 'Percent', 'value' => 42.5, 'sampled_at' => now()->subMinute(),
+        ]);
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:s3:::public-assets',
+            'resource_id' => 'public-assets', 'name' => 'public-assets', 'service' => 's3', 'type' => 'bucket',
+            'region' => 'ap-south-1', 'state' => 'public',
+            'metadata' => [
+                'object_count' => 12345, 'total_size_bytes' => 5368709120, 'is_public' => true,
+                'access_status' => 'public', 'all_public_access_blocked' => false,
+                'public_access_block_enabled_count' => 0, 'public_access_block_inspection_complete' => true,
+            ],
+        ]);
+
+        $this->actingAs($user)->get(route('cloud.index'))->assertOk()
+            ->assertSee('42.5%')->assertSee('web-public')->assertSee('public-assets')
+            ->assertSee('12,345')->assertSee('5.0 GiB')->assertSee('0/4 enabled');
+    }
+
+    public function test_cloud_inventory_can_filter_by_service_region_state_exposure_and_search(): void
+    {
+        $user = User::factory()->create();
+        $connection = $this->connection();
+        $this->createAwsInstance($connection, 'i-private-app', 'running');
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:s3:::public-assets',
+            'resource_id' => 'public-assets', 'name' => 'public-assets', 'service' => 's3', 'type' => 'bucket',
+            'region' => 'us-east-1', 'state' => 'public',
+            'metadata' => ['object_count' => 500, 'is_public' => true, 'all_public_access_blocked' => false],
+        ]);
+
+        $this->actingAs($user)->get(route('cloud.index', [
+            'service' => 's3', 'region' => 'us-east-1', 'state' => 'public',
+            'exposure' => 'public', 'q' => 'assets',
+        ]))->assertOk()->assertSee('public-assets')->assertDontSee('i-private-app')
+            ->assertSee('1 matching EC2, RDS, and S3 resources')->assertSee('Clear filters');
+
+        $this->actingAs($user)->get(route('cloud.index', ['service' => 'ec2', 'exposure' => 'private']))
+            ->assertOk()->assertSee('i-private-app')->assertDontSee('public-assets');
+    }
+
     public function test_instance_dashboard_returns_per_instance_metric_series(): void
     {
         $user = User::factory()->create();
@@ -161,6 +217,52 @@ class AwsCloudMonitoringTest extends TestCase
         AwsResource::query()->where('resource_id', 'sg-risky')->update(['metadata' => ['group_name' => 'admin-open', 'network_interface_ids' => ['eni-public'], 'ingress_rules' => []]]);
         $this->app->make(AwsOptimizationAnalyzer::class)->analyze($connection);
         $this->assertSame('resolved', AwsOptimizationFinding::query()->where('resource_id', 'sg-risky')->firstOrFail()->status);
+    }
+
+    public function test_advisor_links_public_rules_to_ec2_rds_and_s3_resources(): void
+    {
+        $connection = $this->connection();
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:ec2:ap-south-1:123456789012:security-group/sg-public',
+            'resource_id' => 'sg-public', 'name' => 'public-admin-and-db', 'service' => 'ec2', 'type' => 'security-group',
+            'region' => 'ap-south-1', 'state' => 'active', 'metadata' => [
+                'group_name' => 'public-admin-and-db', 'network_interface_ids' => ['eni-public'],
+                'ingress_rules' => [
+                    ['protocol' => 'tcp', 'from_port' => 22, 'to_port' => 22, 'ipv4_ranges' => ['0.0.0.0/0'], 'ipv6_ranges' => []],
+                    ['protocol' => 'tcp', 'from_port' => 5432, 'to_port' => 5432, 'ipv4_ranges' => ['0.0.0.0/0'], 'ipv6_ranges' => []],
+                ],
+            ],
+        ]);
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:ec2:ap-south-1:123456789012:instance/i-public',
+            'resource_id' => 'i-public', 'name' => 'public-bastion', 'service' => 'ec2', 'type' => 'instance',
+            'region' => 'ap-south-1', 'state' => 'running', 'metadata' => [
+                'public_ip' => '203.0.113.10', 'network_interface_ids' => ['eni-public'],
+                'security_groups' => [['id' => 'sg-public', 'name' => 'public-admin-and-db']],
+            ],
+        ]);
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:rds:ap-south-1:123456789012:db:public-db',
+            'resource_id' => 'public-db', 'name' => 'public-db', 'service' => 'rds', 'type' => 'db-instance',
+            'region' => 'ap-south-1', 'state' => 'available', 'metadata' => [
+                'engine' => 'postgres', 'endpoint' => 'public-db.example', 'port' => 5432, 'publicly_accessible' => true,
+                'security_groups' => [['id' => 'sg-public', 'status' => 'active']],
+            ],
+        ]);
+        AwsResource::query()->create([
+            'aws_connection_id' => $connection->id, 'arn' => 'arn:aws:s3:::public-assets',
+            'resource_id' => 'public-assets', 'name' => 'public-assets', 'service' => 's3', 'type' => 'bucket',
+            'region' => 'ap-south-1', 'state' => 'public', 'metadata' => [
+                'is_public' => true, 'policy_is_public' => true, 'acl_is_public' => false,
+                'public_access_block' => ['BlockPublicPolicy' => false], 'object_count' => 250,
+            ],
+        ]);
+
+        $this->app->make(AwsOptimizationAnalyzer::class)->analyze($connection);
+
+        $this->assertDatabaseHas('aws_optimization_findings', ['resource_id' => 'i-public', 'category' => 'ec2-exposure', 'severity' => 'critical']);
+        $this->assertDatabaseHas('aws_optimization_findings', ['resource_id' => 'public-db', 'category' => 'rds-exposure', 'severity' => 'critical']);
+        $this->assertDatabaseHas('aws_optimization_findings', ['resource_id' => 'public-assets', 'category' => 's3', 'severity' => 'critical']);
     }
 
     private function connection(): AwsConnection

@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Agent;
 use App\Models\AgentBuildArtifact;
+use App\Models\AwsConnection;
+use App\Models\AwsOptimizationFinding;
+use App\Models\AwsResource;
 use App\Models\BrowserProject;
 use App\Models\User;
 use App\Models\WebsiteMonitor;
@@ -50,8 +53,9 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($user);
         $this->get(route('dashboard'))->assertOk()
-            ->assertSee('Combined health summary for servers, websites, and browser applications')
+            ->assertSee('Combined health summary for servers, AWS cloud, websites, and browser applications')
             ->assertSee('Server Monitoring')
+            ->assertSee('AWS Cloud')
             ->assertSee('Website Uptime')
             ->assertSee('Browser Monitoring')
             ->assertSee('Settings')
@@ -219,5 +223,46 @@ class DashboardTest extends TestCase
             ->assertJsonPath('uptime_summary.ssl_expiring', 1)
             ->assertJsonPath('uptime_monitors.0.name', 'Healthy website')
             ->assertJsonPath('uptime_monitors.0.status_code', 200);
+    }
+
+    public function test_fleet_dashboard_includes_aws_cloud_health_and_service_details(): void
+    {
+        $user = User::factory()->create();
+        $connection = AwsConnection::query()->create([
+            'name' => 'AWS Production', 'role_arn' => 'arn:aws:iam::123456789012:role/MonitoringAgentRole',
+            'external_id' => 'dashboard-test', 'regions' => ['ap-south-1'], 'status' => 'connected',
+            'is_active' => true, 'last_synced_at' => now()->subMinutes(2),
+        ]);
+        foreach ([
+            ['i-running', 'ec2', 'instance', 'running'],
+            ['i-stopped', 'ec2', 'instance', 'stopped'],
+            ['orders-db', 'rds', 'db-instance', 'available'],
+            ['public-assets', 's3', 'bucket', 'public'],
+        ] as [$id, $service, $type, $state]) {
+            AwsResource::query()->create([
+                'aws_connection_id' => $connection->id, 'arn' => "arn:aws:{$service}:ap-south-1:123456789012:{$id}",
+                'resource_id' => $id, 'name' => $id, 'service' => $service, 'type' => $type,
+                'region' => 'ap-south-1', 'state' => $state,
+            ]);
+        }
+        AwsOptimizationFinding::query()->create([
+            'aws_connection_id' => $connection->id, 'finding_key' => str_repeat('a', 64),
+            'category' => 's3', 'severity' => 'critical', 'confidence' => 'high',
+            'title' => 'Public bucket', 'recommendation' => 'Block public access.',
+            'resource_id' => 'public-assets', 'resource_type' => 'bucket', 'region' => 'ap-south-1',
+            'status' => 'active', 'first_seen_at' => now(), 'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($user)->getJson(route('dashboard.data'))->assertOk()
+            ->assertJsonPath('cloud_summary.status', 'error')
+            ->assertJsonPath('cloud_summary.accounts', 1)
+            ->assertJsonPath('cloud_summary.instances', 2)
+            ->assertJsonPath('cloud_summary.running_instances', 1)
+            ->assertJsonPath('cloud_summary.databases', 1)
+            ->assertJsonPath('cloud_summary.public_buckets', 1)
+            ->assertJsonPath('cloud_summary.critical_findings', 1)
+            ->assertJsonPath('cloud_services.0.service', 'ec2')
+            ->assertJsonPath('cloud_services.0.attention', 1)
+            ->assertJsonPath('cloud_services.2.service', 's3');
     }
 }

@@ -11,6 +11,8 @@ use Aws\Credentials\CredentialProvider;
 use Aws\Ec2\Ec2Client;
 use Aws\PI\PIClient;
 use Aws\Rds\RdsClient;
+use Aws\S3\S3Client;
+use Aws\S3Control\S3ControlClient;
 use Aws\Sts\StsClient;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
@@ -60,6 +62,7 @@ class AwsCloudSyncService
             foreach ($regions as $region) {
                 $this->syncRegion($connection, $credentials, $accountId, $region);
             }
+            $this->syncBuckets($connection, $credentials, $accountId);
             $this->optimizationAnalyzer->analyze($connection);
 
             $connection->update([
@@ -147,6 +150,11 @@ class AwsCloudSyncService
                             'metadata' => [
                                 'private_ip' => $instance['PrivateIpAddress'] ?? null,
                                 'public_ip' => $instance['PublicIpAddress'] ?? null,
+                                'network_interface_ids' => collect($instance['NetworkInterfaces'] ?? [])->pluck('NetworkInterfaceId')->filter()->values()->all(),
+                                'security_groups' => collect($instance['SecurityGroups'] ?? [])->map(fn (array $group): array => [
+                                    'id' => $group['GroupId'] ?? null,
+                                    'name' => $group['GroupName'] ?? null,
+                                ])->filter(fn (array $group): bool => filled($group['id']))->values()->all(),
                                 'platform' => $instance['PlatformDetails'] ?? null,
                                 'vpc_id' => $instance['VpcId'] ?? null,
                                 'subnet_id' => $instance['SubnetId'] ?? null,
@@ -274,6 +282,12 @@ class AwsCloudSyncService
                             'multi_az' => $database['MultiAZ'] ?? false,
                             'performance_insights_enabled' => $database['PerformanceInsightsEnabled'] ?? false,
                             'backup_retention_days' => $database['BackupRetentionPeriod'] ?? null,
+                            'publicly_accessible' => $database['PubliclyAccessible'] ?? false,
+                            'vpc_id' => $database['DBSubnetGroup']['VpcId'] ?? null,
+                            'security_groups' => collect($database['VpcSecurityGroups'] ?? [])->map(fn (array $group): array => [
+                                'id' => $group['VpcSecurityGroupId'] ?? null,
+                                'status' => $group['Status'] ?? null,
+                            ])->filter(fn (array $group): bool => filled($group['id']))->values()->all(),
                         ],
                         'last_seen_at' => now(),
                     ],
@@ -291,6 +305,152 @@ class AwsCloudSyncService
                 }
             }
         }
+    }
+
+    private function syncBuckets(AwsConnection $connection, callable $credentials, string $accountId): void
+    {
+        AwsResource::query()->where('aws_connection_id', $connection->id)
+            ->where('service', 's3')->where('type', 'bucket')->update(['state' => 'stale']);
+        $s3 = new S3Client([
+            'version' => 'latest',
+            'region' => config('services.aws_monitoring.region', 'us-east-1'),
+            'credentials' => $credentials,
+        ]);
+        $accountBlock = null;
+        $accountBlockInspected = false;
+        try {
+            $s3Control = new S3ControlClient([
+                'version' => 'latest',
+                'region' => config('services.aws_monitoring.region', 'us-east-1'),
+                'credentials' => $credentials,
+            ]);
+            $accountBlock = $s3Control->getPublicAccessBlock(['AccountId' => $accountId])['PublicAccessBlockConfiguration'] ?? null;
+            $accountBlockInspected = true;
+        } catch (Throwable $exception) {
+            if (method_exists($exception, 'getAwsErrorCode') && $exception->getAwsErrorCode() === 'NoSuchPublicAccessBlockConfiguration') {
+                $accountBlock = [];
+                $accountBlockInspected = true;
+            }
+        }
+
+        foreach ($s3->listBuckets()['Buckets'] ?? [] as $bucket) {
+            $name = (string) $bucket['Name'];
+            $region = $this->bucketRegion($s3, $name);
+            $regionalClient = new S3Client(['version' => 'latest', 'region' => $region, 'credentials' => $credentials]);
+            $inspection = $this->inspectBucket($regionalClient, $name, $accountBlock, $accountBlockInspected);
+
+            AwsResource::query()->updateOrCreate(
+                ['aws_connection_id' => $connection->id, 'resource_id' => $name, 'region' => $region],
+                [
+                    'arn' => "arn:aws:s3:::{$name}",
+                    'name' => $name,
+                    'service' => 's3',
+                    'type' => 'bucket',
+                    'state' => $inspection['access_status'],
+                    'metadata' => array_merge($inspection, [
+                        'created_at' => isset($bucket['CreationDate']) ? $bucket['CreationDate']->format(DATE_ATOM) : null,
+                    ]),
+                    'last_seen_at' => now(),
+                ],
+            );
+        }
+    }
+
+    private function bucketRegion(S3Client $client, string $bucket): string
+    {
+        $location = $client->getBucketLocation(['Bucket' => $bucket])['LocationConstraint'] ?? null;
+
+        return match ($location) {
+            null, '' => 'us-east-1',
+            'EU' => 'eu-west-1',
+            default => (string) $location,
+        };
+    }
+
+    private function inspectBucket(S3Client $client, string $bucket, ?array $accountBlock, bool $accountBlockInspected): array
+    {
+        $errors = [];
+        $block = null;
+        $blockInspected = false;
+        $policyPublic = false;
+        $policyInspected = false;
+        $aclPublic = false;
+        $aclInspected = false;
+        $objectCount = null;
+        $totalSizeBytes = null;
+
+        try {
+            $block = $client->getPublicAccessBlock(['Bucket' => $bucket])['PublicAccessBlockConfiguration'] ?? null;
+            $blockInspected = true;
+        } catch (Throwable $exception) {
+            if (method_exists($exception, 'getAwsErrorCode') && $exception->getAwsErrorCode() === 'NoSuchPublicAccessBlockConfiguration') {
+                $block = [];
+                $blockInspected = true;
+            } else {
+                $errors['public_access_block'] = mb_substr($exception->getMessage(), 0, 500);
+            }
+        }
+        try {
+            $policyPublic = (bool) ($client->getBucketPolicyStatus(['Bucket' => $bucket])['PolicyStatus']['IsPublic'] ?? false);
+            $policyInspected = true;
+        } catch (Throwable $exception) {
+            if (method_exists($exception, 'getAwsErrorCode') && $exception->getAwsErrorCode() === 'NoSuchBucketPolicy') {
+                $policyInspected = true;
+            } else {
+                $errors['policy_status'] = mb_substr($exception->getMessage(), 0, 500);
+            }
+        }
+        try {
+            $publicUris = ['http://acs.amazonaws.com/groups/global/AllUsers', 'http://acs.amazonaws.com/groups/global/AuthenticatedUsers'];
+            $aclPublic = collect($client->getBucketAcl(['Bucket' => $bucket])['Grants'] ?? [])
+                ->contains(fn (array $grant): bool => in_array($grant['Grantee']['URI'] ?? null, $publicUris, true));
+            $aclInspected = true;
+        } catch (Throwable $exception) {
+            $errors['acl'] = mb_substr($exception->getMessage(), 0, 500);
+        }
+        try {
+            $objectCount = 0;
+            $totalSizeBytes = 0;
+            foreach ($client->getPaginator('ListObjectsV2', ['Bucket' => $bucket]) as $page) {
+                $objectCount += (int) ($page['KeyCount'] ?? count($page['Contents'] ?? []));
+                $totalSizeBytes += (int) collect($page['Contents'] ?? [])->sum('Size');
+            }
+        } catch (Throwable $exception) {
+            $objectCount = null;
+            $totalSizeBytes = null;
+            $errors['object_count'] = mb_substr($exception->getMessage(), 0, 500);
+        }
+
+        $effectiveBlock = collect(['BlockPublicAcls', 'IgnorePublicAcls', 'BlockPublicPolicy', 'RestrictPublicBuckets'])
+            ->mapWithKeys(fn (string $key): array => [$key => (bool) (($block[$key] ?? false) || ($accountBlock[$key] ?? false))])
+            ->all();
+        $allPublicAccessBlocked = ($block !== null || $accountBlock !== null)
+            && collect(['BlockPublicAcls', 'IgnorePublicAcls', 'BlockPublicPolicy', 'RestrictPublicBuckets'])
+                ->every(fn (string $key): bool => $effectiveBlock[$key]);
+        $effectivePolicyPublic = $policyPublic && ! $effectiveBlock['RestrictPublicBuckets'];
+        $effectiveAclPublic = $aclPublic && ! $effectiveBlock['IgnorePublicAcls'];
+        $publicAccessBlockInspectionComplete = $allPublicAccessBlocked || ($blockInspected && $accountBlockInspected);
+        $publicEvidence = $effectivePolicyPublic || $effectiveAclPublic;
+        $accessInspectionComplete = $policyInspected && $aclInspected && $publicAccessBlockInspectionComplete;
+        $accessStatus = $publicEvidence && $publicAccessBlockInspectionComplete ? 'public' : ($accessInspectionComplete ? 'private' : 'unknown');
+        $blockCount = collect($effectiveBlock)->filter()->count();
+
+        return [
+            'object_count' => $objectCount,
+            'total_size_bytes' => $totalSizeBytes,
+            'is_public' => $accessStatus === 'public',
+            'access_status' => $accessStatus,
+            'access_inspection_complete' => $accessInspectionComplete,
+            'policy_is_public' => $policyPublic,
+            'acl_is_public' => $aclPublic,
+            'all_public_access_blocked' => $allPublicAccessBlocked,
+            'public_access_block' => $block,
+            'account_public_access_block' => $accountBlock,
+            'effective_public_access_block' => $effectiveBlock,
+            'public_access_block_enabled_count' => $blockCount,
+            'public_access_block_inspection_complete' => $publicAccessBlockInspectionComplete,
+            'inspection_errors' => $errors,
+        ];
     }
 
     private function syncRdsMetrics(CloudWatchClient $cloudWatch, AwsResource $resource, int $interval): void

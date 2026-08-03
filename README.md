@@ -21,10 +21,15 @@ HTTP API.
 - Historical process snapshots and process CPU heatmap
 - Historical storage occupancy with status progress bars
 - Cross-account AWS monitoring through an external-ID protected read-only role
-- Cloud inventory for Auto Scaling groups, EC2, EBS, RDS, and VPC resources
+- Cloud inventory for Auto Scaling groups, EC2, EBS, RDS, S3, and VPC resources
 - EC2 and RDS dashboards with resource-level health and historical metrics
+- At-a-glance EC2/RDS health, attached Security Groups, and exposure on the inventory page
+- S3 object counts, combined current-object size, Block Public Access posture,
+  and public bucket detection
 - Optional CloudWatch Agent filesystem/memory and RDS Performance Insights SQL data
-- Read-only security group and Elastic IP optimization recommendations
+- Read-only Security Group, EC2/RDS exposure, Elastic IP, and S3 recommendations
+- Cloud inventory filters for account, service, region, state, exposure, and search
+- AWS Cloud health summary on the main dashboard with service-level drilldowns
 - Configured log-file synchronization with offsets, rotation handling, filters,
   and paginated viewing
 - One-minute website uptime monitoring with HTTP status and response time
@@ -371,7 +376,10 @@ healthy, warning, and error counts plus current CPU, RAM, disk, reporting
 status, and active issues across every Server Agent. Its Website Uptime
 section shows operational, unavailable, pending, and SSL-expiry counts plus
 the latest HTTP status, response time, certificate lifetime, and check time for
-each configured website. Its Browser Monitoring section shows active websites,
+each configured website. Its AWS Cloud section shows connection health, EC2
+running state, RDS availability, S3 private/public posture, active finding
+severity, last synchronization time, and direct links to service-filtered
+cloud inventory. Its Browser Monitoring section shows active websites,
 page loads, AJAX/HTMX volume, request and
 JavaScript errors, average page-load time, last event, and per-site health for
 the last 24 hours. Website rows link directly to the detailed Browser
@@ -602,11 +610,19 @@ Before creating a connection:
    five minutes.
 
 The cloud dashboard summarizes Auto Scaling groups, EC2 instances, EBS
-volumes, RDS databases, and VPCs. EC2 and RDS detail pages use the same
-resource-oriented presentation as server monitoring, including overview,
-insights, configuration, and historical charts. The collector records EC2 CPU,
-network, disk I/O, and status checks; RDS CPU, connections, storage, memory,
-latency, throughput, and I/O; and attached EBS capacity and performance.
+volumes, RDS databases, S3 buckets, and VPCs. Its inventory tables show current
+EC2/RDS CPU, network, connections, free storage, attached Security Groups, and
+public-exposure state before opening a resource. Filter the inventory by AWS
+account, EC2/RDS/S3 service, region, resource state, or public/private/flagged
+exposure. Text search matches resource names, IDs, ARNs, IP addresses, instance
+types, and database engines. Service filters hide unrelated inventory sections,
+and service links from the main dashboard open these filtered views directly.
+
+EC2 and RDS detail pages use the same resource-oriented presentation as server
+monitoring, including overview, insights, configuration, and historical charts.
+The collector records EC2 CPU, network, disk I/O, and status checks; RDS CPU,
+connections, storage, memory, latency, throughput, and I/O; and attached EBS
+capacity and performance.
 
 AWS does not expose guest filesystem free space through standard EC2 or EBS
 metrics. Install the Amazon CloudWatch Agent with the configuration provided in
@@ -616,9 +632,29 @@ databases to add database load and available query-level calls, average
 latency, and execution-time insights. Query dimensions and metrics vary by
 database engine and AWS configuration.
 
-The optimization advisor analyzes security groups and Elastic IP addresses. It
-flags broad ingress exposure, unrestricted sensitive ports, unused security
-groups, unassociated addresses, and addresses attached to stopped instances.
+S3 collection counts current object keys and sums their size while paging
+through each bucket. During the same synchronization it inspects bucket policy
+status, ACL grants, and effective bucket/account-level Block Public Access
+controls. The inventory reports these independently as **Objects**, **Total
+size**, **Block Public Access**, and **Effective access**.
+
+Block Public Access is shown as `4/4 enabled`, a partial count such as
+`2/4 enabled`, or `Unknown` when IAM permissions do not allow a reliable inspection.
+Effective access is reported as `Public`, `Private`, or `Unknown`; an incomplete
+inspection is never assumed to mean private. Ensure the monitoring role retains
+`s3:ListAllMyBuckets`, `s3:GetBucketLocation`, `s3:ListBucket`,
+`s3:GetBucketPolicyStatus`, `s3:GetBucketAcl`,
+`s3:GetBucketPublicAccessBlock`, and `s3:GetAccountPublicAccessBlock`.
+
+Object counting provides an exact current-key count but can extend sync time
+and generate additional S3 LIST requests for very large buckets. Version delete
+markers and non-current versions are not included in the count or total size.
+
+The optimization advisor analyzes security groups, their EC2/RDS associations,
+Elastic IP addresses, and S3 public access. It flags broad ingress exposure,
+EC2 instances publicly reachable over SSH, publicly reachable RDS database
+ports, unrestricted sensitive ports, unused security groups, public buckets,
+unassociated addresses, and addresses attached to stopped instances.
 Findings include severity, evidence, and recommended action. This integration
 is strictly advisory: it does not modify, detach, release, or delete AWS
 resources.
@@ -630,8 +666,9 @@ php artisan cloud:sync --force
 ```
 
 For development and demonstrations, seed a simulated inactive connection with
-three Auto Scaling groups, 30 EC2 instances, four RDS databases, one VPC, EBS
-and filesystem metrics, query samples, and optimization findings:
+three Auto Scaling groups, 30 EC2 instances, four RDS databases, four S3
+buckets, one VPC, EBS and filesystem metrics, query samples, and optimization
+findings:
 
 ```bash
 php artisan db:seed --class=AwsCloudDemoSeeder

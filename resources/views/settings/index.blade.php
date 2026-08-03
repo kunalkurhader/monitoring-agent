@@ -45,7 +45,7 @@
         <div class="chart-panel">
             <div class="panel-heading"><h3>Role creation steps</h3><span>AWS IAM Console</span></div>
             <ol class="space-y-5 text-sm">
-                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">1</span><div><p class="font-medium">Create the monitoring permissions policy</p><p class="mt-1 text-slate-500">In the account to monitor, open IAM → Policies → Create policy → JSON. This read-only policy covers EC2, EBS, VPC, security groups, Elastic IPs, RDS, CloudWatch, and Performance Insights.</p><textarea readonly rows="11" class="setup-input mt-3 font-mono text-xs">{
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">1</span><div><p class="font-medium">Create the monitoring permissions policy</p><p class="mt-1 text-slate-500">In the account to monitor, open IAM → Policies → Create policy → JSON. This read-only policy covers EC2, EBS, VPC, security groups, Elastic IPs, RDS, S3, CloudWatch, and Performance Insights.</p><textarea readonly rows="18" class="setup-input mt-3 font-mono text-xs">{
   "Version": "2012-10-17",
   "Statement": [{
     "Effect": "Allow",
@@ -54,7 +54,11 @@
       "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics",
       "cloudwatch:DescribeAlarms", "tag:GetResources",
       "pi:DescribeDimensionKeys", "pi:GetResourceMetrics",
-      "pi:GetDimensionKeyDetails", "pi:ListAvailableResourceMetrics"],
+      "pi:GetDimensionKeyDetails", "pi:ListAvailableResourceMetrics",
+      "s3:ListAllMyBuckets", "s3:GetBucketLocation",
+      "s3:GetBucketPublicAccessBlock", "s3:GetBucketPolicyStatus",
+      "s3:GetBucketAcl", "s3:GetAccountPublicAccessBlock",
+      "s3:ListBucket"],
     "Resource": "*"
   }]
 }</textarea><p class="mt-2 text-xs text-slate-500">Name it <span class="font-mono">MonitoringAgentReadOnly</span>.</p></div></li>
@@ -100,7 +104,7 @@
   }
 }</textarea><p class="mt-2 text-xs text-slate-500">Without the CloudWatch Agent, EC2 monitoring still shows attached EBS capacity and I/O, but AWS does not expose filesystem free space from inside the guest OS.</p></div></li>
                 <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">6</span><div><p class="font-medium">Enable RDS Performance Insights (optional)</p><p class="mt-1 text-slate-500">Enable Performance Insights on each supported RDS database to populate SQL load, calls, average latency, and query execution insights. Standard RDS health metrics remain available when it is disabled; exact query dimensions vary by engine.</p></div></li>
-                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">7</span><div><p class="font-medium">Save, schedule, and verify</p><p class="mt-1 text-slate-500">Enter the role ARN, regions, and fetch interval, then save. Ensure Laravel's scheduler runs every minute; the connection interval controls when AWS is actually queried. For an immediate first import, run <span class="font-mono">php artisan cloud:sync --force</span>.</p><p class="mt-2 text-xs text-slate-500">Security group and Elastic IP findings are recommendations only. Monitoring Agent never changes AWS resources.</p></div></li>
+                <li class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">7</span><div><p class="font-medium">Save, schedule, and verify</p><p class="mt-1 text-slate-500">Enter the role ARN, regions, and fetch interval, then save. Ensure Laravel's scheduler runs every minute; the connection interval controls when AWS is actually queried. For an immediate first import, run <span class="font-mono">php artisan cloud:sync --force</span>.</p><p class="mt-2 text-xs text-slate-500">S3 object counting reads paginated object listings and can increase synchronization time for very large buckets. Security, exposure, and public-bucket findings are recommendations only; Monitoring Agent never changes AWS resources.</p></div></li>
             </ol>
         </div>
         <form method="POST" action="{{ route('settings.cloud.update') }}" class="chart-panel self-start">@csrf @method('PATCH')

@@ -79,6 +79,11 @@ class AwsCloudDemoSeeder extends Seeder
                     'metadata' => [
                         'private_ip' => '10.20.'.($groupIndex + 1).'.'.($instanceIndex + 20),
                         'public_ip' => $groupIndex === 0 && $instanceIndex <= 2 ? '13.233.80.'.(40 + $instanceIndex) : null,
+                        'network_interface_ids' => ['eni-'.$group['prefix'].'-'.str_pad((string) $instanceIndex, 2, '0', STR_PAD_LEFT)],
+                        'security_groups' => collect([
+                            $groupIndex === 0 ? ['id' => 'sg-00000000000000002', 'name' => 'web-public'] : ['id' => 'sg-00000000000000001', 'name' => 'default'],
+                            $groupIndex === 0 && $instanceIndex === 2 ? ['id' => 'sg-00000000000000003', 'name' => 'admin-open'] : null,
+                        ])->filter()->values()->all(),
                         'platform' => 'Linux/UNIX',
                         'architecture' => 'x86_64',
                         'vpc_id' => $vpc->resource_id,
@@ -126,11 +131,18 @@ class AwsCloudDemoSeeder extends Seeder
                     'performance_insights_enabled' => true,
                     'backup_retention_days' => 14,
                     'vpc_id' => $vpc->resource_id,
+                    'publicly_accessible' => $index === 0,
+                    'security_groups' => [[
+                        'id' => $index === 0 ? 'sg-00000000000000004' : 'sg-00000000000000007',
+                        'status' => 'active',
+                    ]],
                 ],
             ]);
             $this->rdsMetrics($database, $now, $index);
             $this->databaseQueries($database, $now, $index, $engine);
         }
+
+        $this->s3Demo($connection);
 
         $optimizationAnalyzer->analyze($connection);
     }
@@ -361,6 +373,7 @@ class AwsCloudDemoSeeder extends Seeder
             ['sg-00000000000000004', 'database-open', ['eni-database-01'], [$this->rule('tcp', 5432, 5432, ['0.0.0.0/0'])]],
             ['sg-00000000000000005', 'legacy-open-all', ['eni-worker-01'], [$this->rule('-1', null, null, ['0.0.0.0/0'])]],
             ['sg-00000000000000006', 'unused-experiment', [], [$this->rule('tcp', 8080, 8080, ['10.20.0.0/16'])]],
+            ['sg-00000000000000007', 'database-private', ['eni-database-02', 'eni-database-03', 'eni-database-04'], [$this->rule('tcp', 5432, 5432, ['10.20.0.0/16']), $this->rule('tcp', 3306, 3306, ['10.20.0.0/16'])]],
         ];
         foreach ($securityGroups as [$id, $name, $interfaces, $ingress]) {
             $this->resource($connection, [
@@ -401,5 +414,51 @@ class AwsCloudDemoSeeder extends Seeder
     private function demoInstanceId(int $number): string
     {
         return 'i-'.str_pad(dechex(0x1000000000000000 + $number), 17, '0', STR_PAD_LEFT);
+    }
+
+    private function s3Demo(AwsConnection $connection): void
+    {
+        foreach ([
+            ['production-assets', 184320, 786432000000, false, true],
+            ['application-logs', 8260140, 4398046511104, false, true],
+            ['database-backups', 2198, 1649267441664, false, true],
+            ['legacy-public-downloads', 4281, 12884901888, true, false],
+        ] as [$name, $objects, $sizeBytes, $public, $blocked]) {
+            $this->resource($connection, [
+                'arn' => 'arn:aws:s3:::'.$name,
+                'resource_id' => $name,
+                'name' => $name,
+                'service' => 's3',
+                'type' => 'bucket',
+                'state' => $public ? 'public' : 'private',
+                'metadata' => [
+                    'object_count' => $objects,
+                    'total_size_bytes' => $sizeBytes,
+                    'is_public' => $public,
+                    'access_status' => $public ? 'public' : 'private',
+                    'access_inspection_complete' => true,
+                    'policy_is_public' => $public,
+                    'acl_is_public' => false,
+                    'all_public_access_blocked' => $blocked,
+                    'public_access_block_enabled_count' => $blocked ? 4 : 0,
+                    'public_access_block_inspection_complete' => true,
+                    'public_access_block' => [
+                        'BlockPublicAcls' => $blocked,
+                        'IgnorePublicAcls' => $blocked,
+                        'BlockPublicPolicy' => $blocked,
+                        'RestrictPublicBuckets' => $blocked,
+                    ],
+                    'account_public_access_block' => [],
+                    'effective_public_access_block' => [
+                        'BlockPublicAcls' => $blocked,
+                        'IgnorePublicAcls' => $blocked,
+                        'BlockPublicPolicy' => $blocked,
+                        'RestrictPublicBuckets' => $blocked,
+                    ],
+                    'inspection_errors' => [],
+                    'created_at' => now()->subMonths(18)->toIso8601String(),
+                ],
+            ]);
+        }
     }
 }

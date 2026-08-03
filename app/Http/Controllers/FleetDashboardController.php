@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use App\Models\AwsConnection;
+use App\Models\AwsOptimizationFinding;
+use App\Models\AwsResource;
 use App\Models\BrowserProject;
 use App\Models\WebsiteMonitor;
 use Illuminate\Http\JsonResponse;
@@ -82,6 +85,19 @@ class FleetDashboardController extends Controller
                 'last_checked_at' => $monitor->last_checked_at?->toIso8601String(),
             ];
         });
+        $cloudConnections = AwsConnection::query()->get();
+        $cloudResources = AwsResource::query()->where('state', '!=', 'stale')
+            ->whereIn('type', ['instance', 'db-instance', 'bucket'])->get();
+        $cloudFindings = AwsOptimizationFinding::query()->where('status', 'active')->get();
+        $ec2 = $cloudResources->where('service', 'ec2');
+        $rds = $cloudResources->where('service', 'rds');
+        $s3 = $cloudResources->where('service', 's3');
+        $cloudAttention = $ec2->where('state', '!=', 'running')->count()
+            + $rds->where('state', '!=', 'available')->count()
+            + $s3->whereIn('state', ['public', 'unknown'])->count();
+        $cloudStatus = $cloudConnections->isEmpty() ? 'empty'
+            : ($cloudConnections->where('status', 'error')->isNotEmpty() || $cloudFindings->where('severity', 'critical')->isNotEmpty() ? 'error'
+                : ($cloudFindings->isNotEmpty() || $cloudAttention > 0 ? 'warning' : 'healthy'));
 
         return response()->json([
             'summary' => [
@@ -106,6 +122,27 @@ class FleetDashboardController extends Controller
                 'ssl_expiring' => $websiteMonitors->filter(fn (array $monitor): bool => $monitor['status'] !== 'paused' && $monitor['ssl_days'] !== null && $monitor['ssl_days'] <= 30)->count(),
             ],
             'uptime_monitors' => $websiteMonitors->values(),
+            'cloud_summary' => [
+                'status' => $cloudStatus,
+                'accounts' => $cloudConnections->count(),
+                'connection_errors' => $cloudConnections->where('status', 'error')->count(),
+                'instances' => $ec2->count(),
+                'running_instances' => $ec2->where('state', 'running')->count(),
+                'databases' => $rds->count(),
+                'available_databases' => $rds->where('state', 'available')->count(),
+                'buckets' => $s3->count(),
+                'private_buckets' => $s3->where('state', 'private')->count(),
+                'public_buckets' => $s3->where('state', 'public')->count(),
+                'findings' => $cloudFindings->count(),
+                'critical_findings' => $cloudFindings->where('severity', 'critical')->count(),
+                'high_findings' => $cloudFindings->where('severity', 'high')->count(),
+                'last_synced_at' => $cloudConnections->max('last_synced_at')?->toIso8601String(),
+            ],
+            'cloud_services' => [
+                ['service' => 'ec2', 'name' => 'EC2', 'total' => $ec2->count(), 'healthy' => $ec2->where('state', 'running')->count(), 'attention' => $ec2->where('state', '!=', 'running')->count(), 'healthy_label' => 'Running'],
+                ['service' => 'rds', 'name' => 'RDS', 'total' => $rds->count(), 'healthy' => $rds->where('state', 'available')->count(), 'attention' => $rds->where('state', '!=', 'available')->count(), 'healthy_label' => 'Available'],
+                ['service' => 's3', 'name' => 'S3', 'total' => $s3->count(), 'healthy' => $s3->where('state', 'private')->count(), 'attention' => $s3->whereIn('state', ['public', 'unknown'])->count(), 'healthy_label' => 'Private'],
+            ],
             'server_time' => now()->toIso8601String(),
         ]);
     }

@@ -12,23 +12,71 @@ use Illuminate\View\View;
 
 class CloudDashboardController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $connections = AwsConnection::query()->withCount('resources')->orderBy('name')->get();
-        $resources = AwsResource::query()->with('connection')->orderBy('service')->orderBy('name')->get();
+        $allResources = AwsResource::query()->where('state', '!=', 'stale')->with('connection')->orderBy('service')->orderBy('name')->get();
+        $inventoryResources = $allResources->filter(fn (AwsResource $resource): bool => in_array($resource->type, ['instance', 'db-instance', 'bucket'], true));
+        $filters = [
+            'account' => $request->string('account')->toString(),
+            'service' => $request->string('service')->toString(),
+            'region' => $request->string('region')->toString(),
+            'state' => $request->string('state')->toString(),
+            'exposure' => $request->string('exposure')->toString(),
+            'q' => trim($request->string('q')->toString()),
+        ];
+        $exposureFindings = AwsOptimizationFinding::query()->where('status', 'active')
+            ->whereIn('category', ['ec2-exposure', 'rds-exposure'])->get()->keyBy('resource_id');
+        $resources = $inventoryResources
+            ->when($filters['account'] !== '', fn ($items) => $items->where('aws_connection_id', (int) $filters['account']))
+            ->when($filters['service'] !== '', fn ($items) => $items->where('service', $filters['service']))
+            ->when($filters['region'] !== '', fn ($items) => $items->where('region', $filters['region']))
+            ->when($filters['state'] !== '', fn ($items) => $items->where('state', $filters['state']))
+            ->when($filters['q'] !== '', function ($items) use ($filters) {
+                $needle = mb_strtolower($filters['q']);
+
+                return $items->filter(fn (AwsResource $resource): bool => str_contains(mb_strtolower(implode(' ', [
+                    $resource->name, $resource->resource_id, $resource->arn, $resource->instance_type,
+                    $resource->metadata['engine'] ?? null, $resource->metadata['private_ip'] ?? null,
+                    $resource->metadata['public_ip'] ?? null,
+                ])), $needle));
+            })
+            ->when($filters['exposure'] !== '', fn ($items) => $items->filter(fn (AwsResource $resource): bool => match ($filters['exposure']) {
+                'flagged' => $exposureFindings->has($resource->resource_id) || ($resource->service === 's3' && $resource->state === 'public'),
+                'public' => filled($resource->metadata['public_ip'] ?? null) || ($resource->metadata['publicly_accessible'] ?? false) || ($resource->service === 's3' && $resource->state === 'public'),
+                'private' => match ($resource->service) {
+                    's3' => $resource->state === 'private',
+                    'rds' => ! ($resource->metadata['publicly_accessible'] ?? false),
+                    default => blank($resource->metadata['public_ip'] ?? null),
+                },
+                default => true,
+            }))->values();
+        $listingMetrics = $this->latestMetrics($resources->whereIn('type', ['instance', 'db-instance'])->pluck('id')->all());
+        $securityGroupNames = $allResources->where('type', 'security-group')->pluck('name', 'resource_id');
 
         return view('cloud.index', [
             'connections' => $connections,
             'resources' => $resources,
+            'listingMetrics' => $listingMetrics,
+            'securityGroupNames' => $securityGroupNames,
+            'exposureFindings' => $exposureFindings,
+            'filters' => $filters,
+            'filterOptions' => [
+                'regions' => $inventoryResources->pluck('region')->filter()->unique()->sort()->values(),
+                'states' => $inventoryResources->pluck('state')->filter()->unique()->sort()->values(),
+            ],
             'summary' => [
                 'accounts' => $connections->count(),
-                'resources' => $resources->count(),
-                'instances' => $resources->where('service', 'ec2')->where('type', 'instance')->count(),
-                'databases' => $resources->where('service', 'rds')->where('type', 'db-instance')->count(),
-                'running' => $resources->where('service', 'ec2')->where('state', 'running')->count(),
-                'stopped' => $resources->where('service', 'ec2')->where('state', 'stopped')->count(),
-                'regions' => $resources->pluck('region')->unique()->count(),
+                'resources' => $allResources->count(),
+                'instances' => $inventoryResources->where('service', 'ec2')->count(),
+                'databases' => $inventoryResources->where('service', 'rds')->count(),
+                'buckets' => $inventoryResources->where('service', 's3')->count(),
+                'public_buckets' => $inventoryResources->where('service', 's3')->where('state', 'public')->count(),
+                'running' => $inventoryResources->where('service', 'ec2')->where('state', 'running')->count(),
+                'stopped' => $inventoryResources->where('service', 'ec2')->where('state', 'stopped')->count(),
+                'regions' => $allResources->pluck('region')->unique()->count(),
                 'findings' => AwsOptimizationFinding::query()->where('status', 'active')->count(),
+                'filtered' => $resources->count(),
             ],
         ]);
     }
@@ -49,6 +97,8 @@ class CloudDashboardController extends Controller
                 'low' => $findings->where('severity', 'low')->count(),
                 'security_groups' => $findings->where('category', 'security-group')->count(),
                 'elastic_ips' => $findings->where('category', 'elastic-ip')->count(),
+                'workload_exposure' => $findings->whereIn('category', ['ec2-exposure', 'rds-exposure'])->count(),
+                's3' => $findings->where('category', 's3')->count(),
             ],
         ]);
     }
@@ -187,5 +237,22 @@ class CloudDashboardController extends Controller
             'query_window_ended_at' => $latestWindow,
             'server_time' => now()->toIso8601String(),
         ]);
+    }
+
+    private function latestMetrics(array $resourceIds): array
+    {
+        if ($resourceIds === []) {
+            return [];
+        }
+
+        return DB::table('aws_metric_samples')->whereIn('aws_resource_id', $resourceIds)
+            ->whereIn('namespace', ['AWS/EC2', 'AWS/RDS'])
+            ->whereIn('metric_name', ['CPUUtilization', 'NetworkIn', 'NetworkOut', 'StatusCheckFailed', 'DatabaseConnections', 'FreeStorageSpace', 'FreeableMemory'])
+            ->orderByDesc('sampled_at')->get(['aws_resource_id', 'metric_name', 'value', 'sampled_at'])
+            ->unique(fn ($row): string => $row->aws_resource_id.'|'.$row->metric_name)
+            ->groupBy('aws_resource_id')
+            ->map(fn ($rows): array => $rows->mapWithKeys(fn ($row): array => [
+                $row->metric_name => ['value' => (float) $row->value, 'sampled_at' => $row->sampled_at],
+            ])->all())->all();
     }
 }

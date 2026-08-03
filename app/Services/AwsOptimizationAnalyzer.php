@@ -18,6 +18,7 @@ class AwsOptimizationAnalyzer
         $resources = $connection->resources()->where('state', '!=', 'stale')->get();
         $elasticIps = $resources->where('type', 'elastic-ip');
         $publicEnis = $elasticIps->pluck('metadata.network_interface_id')->filter()->unique();
+        $securityGroups = $resources->where('type', 'security-group')->keyBy('resource_id');
         $activeKeys = [];
 
         foreach ($resources->where('type', 'security-group') as $group) {
@@ -30,12 +31,118 @@ class AwsOptimizationAnalyzer
                 $activeKeys[] = $this->store($connection, $elasticIp, $finding);
             }
         }
+        foreach ($resources->where('service', 'ec2')->where('type', 'instance') as $instance) {
+            foreach ($this->instanceExposureFindings($instance, $securityGroups, $elasticIps) as $finding) {
+                $activeKeys[] = $this->store($connection, $instance, $finding);
+            }
+        }
+        foreach ($resources->where('service', 'rds')->where('type', 'db-instance') as $database) {
+            foreach ($this->databaseExposureFindings($database, $securityGroups) as $finding) {
+                $activeKeys[] = $this->store($connection, $database, $finding);
+            }
+        }
+        foreach ($resources->where('service', 's3')->where('type', 'bucket') as $bucket) {
+            foreach ($this->bucketFindings($bucket) as $finding) {
+                $activeKeys[] = $this->store($connection, $bucket, $finding);
+            }
+        }
 
         $stale = AwsOptimizationFinding::query()->where('aws_connection_id', $connection->id)->where('status', 'active');
         $activeKeys === [] ? $stale->update(['status' => 'resolved', 'resolved_at' => now()])
             : $stale->whereNotIn('finding_key', $activeKeys)->update(['status' => 'resolved', 'resolved_at' => now()]);
 
         return count($activeKeys);
+    }
+
+    private function instanceExposureFindings(AwsResource $instance, $securityGroups, $elasticIps): array
+    {
+        $metadata = $instance->metadata ?? [];
+        $interfaceIds = collect($metadata['network_interface_ids'] ?? []);
+        $hasElasticIp = $elasticIps->contains(fn (AwsResource $address): bool => ($address->metadata['instance_id'] ?? null) === $instance->resource_id
+            || $interfaceIds->contains($address->metadata['network_interface_id'] ?? null));
+        $publicIp = $metadata['public_ip'] ?? null;
+        if (! $publicIp && ! $hasElasticIp) {
+            return [];
+        }
+
+        $exposure = $this->publicRulesForPort($metadata['security_groups'] ?? [], $securityGroups, 22);
+        if ($exposure === []) {
+            return [];
+        }
+
+        return [[
+            'code' => 'ec2-public-ssh', 'category' => 'ec2-exposure', 'severity' => 'critical', 'confidence' => 'high',
+            'title' => "{$instance->name} is publicly reachable over SSH",
+            'recommendation' => 'Remove internet-wide SSH ingress. Prefer AWS Systems Manager Session Manager, a VPN, a bastion host, or tightly restricted administrator CIDRs.',
+            'evidence' => [
+                'instance_id' => $instance->resource_id, 'public_ip' => $publicIp,
+                'elastic_ip_attached' => $hasElasticIp, 'port' => 22, 'service' => 'SSH',
+                'security_groups' => $exposure,
+            ],
+        ]];
+    }
+
+    private function databaseExposureFindings(AwsResource $database, $securityGroups): array
+    {
+        $metadata = $database->metadata ?? [];
+        if (! ($metadata['publicly_accessible'] ?? false)) {
+            return [];
+        }
+        $port = (int) ($metadata['port'] ?? 0);
+        $exposure = $port > 0 ? $this->publicRulesForPort($metadata['security_groups'] ?? [], $securityGroups, $port) : [];
+        if ($exposure === []) {
+            return [];
+        }
+
+        return [[
+            'code' => 'rds-public-database-port-'.$port, 'category' => 'rds-exposure', 'severity' => 'critical', 'confidence' => 'high',
+            'title' => "{$database->name} is publicly reachable on database port {$port}",
+            'recommendation' => 'Disable public accessibility where possible and allow database ingress only from application Security Groups or private network CIDRs.',
+            'evidence' => [
+                'database_id' => $database->resource_id, 'endpoint' => $metadata['endpoint'] ?? null,
+                'engine' => $metadata['engine'] ?? null, 'port' => $port, 'security_groups' => $exposure,
+            ],
+        ]];
+    }
+
+    private function bucketFindings(AwsResource $bucket): array
+    {
+        $metadata = $bucket->metadata ?? [];
+        if (! ($metadata['is_public'] ?? false)) {
+            return [];
+        }
+
+        return [[
+            'code' => 's3-public-bucket', 'category' => 's3', 'severity' => 'critical', 'confidence' => 'high',
+            'title' => "S3 bucket {$bucket->name} is publicly accessible",
+            'recommendation' => 'Enable all four S3 Block Public Access controls and remove public bucket-policy statements or ACL grants unless public delivery is explicitly required.',
+            'evidence' => [
+                'bucket' => $bucket->name,
+                'policy_is_public' => $metadata['policy_is_public'] ?? false,
+                'acl_is_public' => $metadata['acl_is_public'] ?? false,
+                'public_access_block' => $metadata['public_access_block'] ?? null,
+                'object_count' => $metadata['object_count'] ?? null,
+            ],
+        ]];
+    }
+
+    private function publicRulesForPort(array $attachedGroups, $securityGroups, int $port): array
+    {
+        return collect($attachedGroups)->map(function (array|string $attached) use ($securityGroups, $port): ?array {
+            $groupId = is_array($attached) ? ($attached['id'] ?? null) : $attached;
+            $group = $groupId ? $securityGroups->get($groupId) : null;
+            if (! $group) {
+                return null;
+            }
+            $rules = collect($group->metadata['ingress_rules'] ?? [])->filter(function (array $rule) use ($port): bool {
+                $sources = array_merge($rule['ipv4_ranges'] ?? [], $rule['ipv6_ranges'] ?? []);
+                $public = array_intersect($sources, ['0.0.0.0/0', '::/0']) !== [];
+
+                return $public && (($rule['protocol'] ?? '') === '-1' || $this->ruleIncludesPort($rule, $port));
+            })->values()->all();
+
+            return $rules === [] ? null : ['id' => $group->resource_id, 'name' => $group->name, 'rules' => $rules];
+        })->filter()->values()->all();
     }
 
     private function securityGroupFindings(AwsResource $group, array $publicEnis): array
