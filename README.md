@@ -34,7 +34,7 @@ Composer installation.
 Clone the repository and install dependencies:
 
 ```bash
-git clone <repository-url> monitoring-agent
+git clone https://github.com/kunalkurhader/monitoring-agent.git
 cd monitoring-agent
 composer install --ignore-platform-req=ext-oci8
 npm install
@@ -140,7 +140,7 @@ recovery emails are sent once per incident.
 On a supported Debian-, Ubuntu-, RHEL-, Fedora-, or Amazon Linux-based server:
 
 ```bash
-git clone <repository-url> monitoring-agent
+git clone https://github.com/kunalkurhader/monitoring-agent.git
 cd monitoring-agent
 sudo ./install.sh
 ```
