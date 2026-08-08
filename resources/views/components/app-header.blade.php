@@ -4,6 +4,18 @@
     $navItem = fn (string $name) => $active === $name
         ? 'bg-emerald-50 font-medium text-emerald-800 dark:bg-slate-800 dark:text-white'
         : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800';
+
+    $navigation = [
+        ['label' => 'Dashboard', 'mobile_label' => 'Dashboard', 'route' => 'dashboard', 'active' => 'dashboard'],
+        ['label' => 'Servers', 'mobile_label' => 'Server Monitoring', 'route' => 'monitors.index', 'active' => 'monitor'],
+        ['label' => 'Cloud', 'mobile_label' => 'AWS Cloud', 'route' => 'cloud.index', 'active' => 'cloud'],
+        ['label' => 'Uptime', 'mobile_label' => 'Website Uptime', 'route' => 'website-monitors.index', 'active' => 'uptime'],
+        ['label' => 'Browser', 'mobile_label' => 'Browser Monitoring', 'route' => 'browser-monitoring.index', 'active' => 'browser'],
+    ];
+
+    if (auth()->user()->is_admin) {
+        $navigation[] = ['label' => 'Settings', 'mobile_label' => 'Settings', 'route' => 'settings.index', 'active' => 'settings'];
+    }
 @endphp
 
 <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
@@ -19,14 +31,9 @@
             </a>
 
             <nav class="ml-4 hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
-                <a href="{{ route('dashboard') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('dashboard') }}">Dashboard</a>
-                <a href="{{ route('monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('monitor') }}">Servers</a>
-                <a href="{{ route('cloud.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('cloud') }}">Cloud</a>
-                <a href="{{ route('website-monitors.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('uptime') }}">Uptime</a>
-                <a href="{{ route('browser-monitoring.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('browser') }}">Browser</a>
-                @if(auth()->user()->is_admin)
-                    <a href="{{ route('settings.index') }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem('settings') }}">Settings</a>
-                @endif
+                @foreach($navigation as $item)
+                    <a href="{{ route($item['route']) }}" class="rounded-lg px-3 py-2 text-sm {{ $navItem($item['active']) }}">{{ $item['label'] }}</a>
+                @endforeach
             </nav>
 
             <div class="ml-auto flex items-center gap-2">
@@ -59,14 +66,9 @@
 
         <div id="mobile-navigation" data-mobile-menu-panel class="hidden border-t border-slate-100 py-3 dark:border-slate-800 lg:hidden">
             <nav class="grid gap-1" aria-label="Mobile navigation">
-                <a href="{{ route('dashboard') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('dashboard') }}">Dashboard</a>
-                <a href="{{ route('monitors.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('monitor') }}">Server Monitoring</a>
-                <a href="{{ route('cloud.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('cloud') }}">AWS Cloud</a>
-                <a href="{{ route('website-monitors.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('uptime') }}">Website Uptime</a>
-                <a href="{{ route('browser-monitoring.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('browser') }}">Browser Monitoring</a>
-                @if(auth()->user()->is_admin)
-                    <a href="{{ route('settings.index') }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem('settings') }}">Settings</a>
-                @endif
+                @foreach($navigation as $item)
+                    <a href="{{ route($item['route']) }}" class="rounded-xl px-3 py-2.5 text-sm {{ $navItem($item['active']) }}">{{ $item['mobile_label'] }}</a>
+                @endforeach
             </nav>
             <div class="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800 sm:hidden">
                 <p class="px-3 text-sm font-medium">{{ auth()->user()->name }}</p>

@@ -53,7 +53,7 @@ class WebsiteMonitorChecker
             $monitor->update(['outage_notified_at' => null]);
         }
 
-        if (strtolower((string) parse_url($monitor->url, PHP_URL_SCHEME)) === 'https') {
+        if ($monitor->check_ssl && strtolower((string) parse_url($monitor->url, PHP_URL_SCHEME)) === 'https') {
             $this->checkCertificate($monitor);
         } else {
             $monitor->update(['ssl_expires_at' => null, 'ssl_checked_at' => null]);

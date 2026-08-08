@@ -440,6 +440,16 @@ Server Monitoring, Uptime, Browser Monitoring, Settings, Profile, and Team.
 Desktop navigation collapses into a mobile menu on smaller screens. Settings
 is visible only to administrators. The theme control saves the user's
 preference in browser storage and applies it before the page renders.
+
+Primary navigation uses one shared route map for desktop and mobile:
+
+- Dashboard: `/dashboard`
+- Servers: `/monitors`
+- Cloud: `/cloud`
+- Uptime: `/website-monitors`
+- Browser: `/browser-monitoring`
+- Settings (administrators only): `/settings`
+
 The avatar-style Account menu links to Profile and Team and provides Sign out.
 Profile allows a user to update their display name and optionally change their
 password while showing their email and current role.
@@ -449,7 +459,11 @@ password while showing their email and current role.
 The authenticated **Uptime** module displays HTTP and HTTPS website health.
 Administrators register and manage websites under **Settings → Uptime
 Monitors**, including the display name, URL, alert recipient, and active/paused
-state. All authenticated members can view the Uptime dashboard. It shows the
+state. SSL certificate inspection can be enabled or disabled per monitor and
+is enabled by default for existing and newly created monitors. When disabled,
+the checker skips certificate inspection and clears previously stored SSL
+expiry/check timestamps. All authenticated members can view the Uptime
+dashboard. It shows the
 last HTTP status, response time, SSL lifetime, last check, connection/TLS
 errors, and pending, paused, operational, or unavailable state.
 
@@ -461,15 +475,27 @@ The checker creates one outage email per incident instead of sending a message
 every minute, followed by one recovery email when HTTP 200 returns.
 
 For HTTPS websites, the checker validates the remote certificate and records
-its expiry. Alert emails are deduplicated at the 30-day, 15-day, 7-day, and
-expiry-day milestones. SMTP delivery is configured under **Settings → Email
-Settings**. The Linux installer creates
+its expiry only when **Check SSL certificate** is enabled. The dashboard shows
+**Disabled** when certificate inspection is off. Alert emails are deduplicated
+at the 30-day, 15-day, 7-day, and expiry-day milestones. SMTP delivery is
+configured under **Settings → Email Settings**. The Linux installer creates
 `/etc/cron.d/monitoring-agent-scheduler` to run Laravel's scheduler every minute.
 
-Run an immediate check manually:
+Administrators can select **Check now** on any Uptime card to run its HTTP and,
+when enabled, SSL checks immediately. The action updates the card and displays
+the result; it is limited to ten requests per minute. The equivalent command
+for all active monitors is:
 
 ```bash
 php artisan monitors:check
+```
+
+Load a repeatable uptime demonstration with operational, unavailable, paused,
+SSL-enabled, SSL-disabled, and expiring-certificate states:
+
+```bash
+php artisan migrate
+php artisan db:seed --class=WebsiteMonitoringDemoSeeder
 ```
 
 During local development, `php artisan serve` does not run scheduled commands.

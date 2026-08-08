@@ -62,6 +62,27 @@ class DashboardTest extends TestCase
             ->assertSee(route('settings.index'));
     }
 
+    public function test_primary_navigation_uses_the_expected_routes(): void
+    {
+        $user = User::factory()->create(['is_admin' => true]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+
+        foreach ([
+            'Dashboard' => '/dashboard',
+            'Servers' => '/monitors',
+            'Cloud' => '/cloud',
+            'Uptime' => '/website-monitors',
+            'Browser' => '/browser-monitoring',
+            'Settings' => '/settings',
+        ] as $label => $path) {
+            $response->assertSee('href="'.url($path).'"', false);
+            $response->assertSee('>'.$label.'</a>', false);
+        }
+    }
+
     public function test_admin_can_generate_agent_token_and_member_cannot(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

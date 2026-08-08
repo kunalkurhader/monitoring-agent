@@ -70,7 +70,7 @@ class FleetDashboardController extends Controller
             ];
         });
         $websiteMonitors = WebsiteMonitor::query()->orderByDesc('is_active')->orderBy('name')->get()->map(function (WebsiteMonitor $monitor): array {
-            $sslDays = $monitor->ssl_expires_at
+            $sslDays = $monitor->check_ssl && $monitor->ssl_expires_at
                 ? (int) now()->startOfDay()->diffInDays($monitor->ssl_expires_at->copy()->startOfDay(), false)
                 : null;
 

@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\MailSetting;
 use App\Models\WebsiteMonitor;
+use App\Services\WebsiteMonitorChecker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 class WebsiteMonitorController extends Controller
 {
@@ -31,6 +33,7 @@ class WebsiteMonitorController extends Controller
 
         $validated = $validator->validated();
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['check_ssl'] = $request->boolean('check_ssl');
         WebsiteMonitor::query()->create($validated);
 
         return redirect()->to(route('settings.index').'#uptime-monitoring')->with('status', 'Website monitor created. It will be checked within one minute.');
@@ -48,6 +51,26 @@ class WebsiteMonitorController extends Controller
         return redirect()->route('website-monitors.index')->with('status', 'Website monitor updated.');
     }
 
+    public function check(WebsiteMonitor $websiteMonitor, WebsiteMonitorChecker $checker): RedirectResponse
+    {
+        try {
+            $checker->check($websiteMonitor);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return redirect()->route('website-monitors.index')
+                ->with('error', "The manual check for {$websiteMonitor->name} could not be completed.");
+        }
+
+        $websiteMonitor->refresh();
+        $result = $websiteMonitor->is_up
+            ? 'operational'
+            : ($websiteMonitor->last_status_code ? "returning HTTP {$websiteMonitor->last_status_code}" : 'unreachable');
+
+        return redirect()->route('website-monitors.index')
+            ->with('status', "Manual check complete: {$websiteMonitor->name} is {$result}.");
+    }
+
     public function destroy(WebsiteMonitor $websiteMonitor): RedirectResponse
     {
         $websiteMonitor->delete();
@@ -59,6 +82,7 @@ class WebsiteMonitorController extends Controller
     {
         $validated = $request->validate($this->rules());
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['check_ssl'] = $request->boolean('check_ssl');
 
         return $validated;
     }
@@ -70,6 +94,7 @@ class WebsiteMonitorController extends Controller
             'url' => ['required', 'url:http,https', 'max:2048'],
             'alert_email' => ['required', 'email:rfc', 'max:255'],
             'is_active' => ['nullable', Rule::in(['0', '1'])],
+            'check_ssl' => ['nullable', Rule::in(['0', '1'])],
         ];
     }
 }

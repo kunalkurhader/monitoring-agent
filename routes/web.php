@@ -77,6 +77,9 @@ Route::middleware('auth')->group(function (): void {
             ->name('agents.builds.store');
         Route::post('/browser-monitoring', [BrowserMonitoringController::class, 'store'])->name('browser-monitoring.store');
         Route::post('/website-monitors', [WebsiteMonitorController::class, 'store'])->name('website-monitors.store');
+        Route::post('/website-monitors/{website_monitor}/check', [WebsiteMonitorController::class, 'check'])
+            ->middleware('throttle:10,1')
+            ->name('website-monitors.check');
         Route::get('/website-monitors/{website_monitor}/edit', [WebsiteMonitorController::class, 'edit'])->name('website-monitors.edit');
         Route::match(['put', 'patch'], '/website-monitors/{website_monitor}', [WebsiteMonitorController::class, 'update'])->name('website-monitors.update');
         Route::delete('/website-monitors/{website_monitor}', [WebsiteMonitorController::class, 'destroy'])->name('website-monitors.destroy');
